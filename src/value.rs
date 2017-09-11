@@ -23,9 +23,9 @@ impl Display for Value {
 			&Value::Str(ref s) => write!(f, "{}", s),
 			&Value::Num(v) => write!(f, "{}", v),
 			&Value::List(ref lst) => {
-				let mut string = lst.iter().fold(String::new(), |s, i| s + &i.to_str() + ", ");
+				let mut string = lst.iter().fold(String::new(), |s, i| s + &format!("{}", i) + ", ");
 				string.pop(); string.pop();
-				write!(f, " [{}]", string)
+				write!(f, "[{}]", string)
 			}
 		}
 	}
@@ -38,26 +38,26 @@ impl Debug for Value {
 }
 
 impl Value {
-	pub fn to_str(&self) -> String {
+	pub fn to_str(self) -> String {
 		format!("{}", self)
 	}
 
-	pub fn to_list(&self) -> Vec<Value> {
+	pub fn to_list(self) -> Vec<Value> {
 		match self {
-			&Value::List(ref lst) => lst.clone(),
+			Value::List(lst) => lst.clone(),
 
 			x => panic!("{:?} is not a list", x)
 		}
 	}
 
-	pub fn to_bool(&self) -> bool {
+	pub fn to_bool(self) -> bool {
 		match self {
-			&Value::Num(n) => n != 0.0,
+			Value::Num(n) => n != 0.0,
 			x => panic!("{:?} is not a bool", x)
 		}
 	}
 
-	pub fn to_num(&self) -> f64 {
+	pub fn to_num(self) -> f64 {
 		fn try(val: &Value) -> Option<f64> {
 			match val {
 				&Value::Str(ref s) => s.parse().ok(),
@@ -66,7 +66,7 @@ impl Value {
 			}
 		}
 
-		if let Some(n) = try(self) {
+		if let Some(n) = try(&self) {
 			n 
 		} else {
 			panic!("{:?} is not a number", self)
@@ -74,9 +74,9 @@ impl Value {
 	}
 
 
-	pub fn call(&self, args: Value) -> Value {
+	pub fn call(self, args: Value) -> Value {
 		match self {
-			&Value::Func(ref f) => (*f)(args),
+			Value::Func(f) => f(args),
 
 			x => panic!("{:?} is not a function", x)
 		}

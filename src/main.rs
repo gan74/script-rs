@@ -34,12 +34,20 @@ fn scan_val(v: Value) -> Value {
 }
 
 fn main() {
-	//
+	/*/
 	let input = r#"{
 			let fun = (t, u) => t + u
 			let lst = 7, 2, 5, 8, 6, 4, 9, 3, 2
+			print(lst)
 			for i : lst {
 				print(fun(i, 2))
+			}
+		}"#;*/
+
+	let input = r#"{
+			let count = 10000000
+			while count {
+				count = count - 1
 			}
 		}"#;
 
@@ -51,8 +59,8 @@ fn main() {
 	println!("{}", ast);
 
 	let mut env = Env::new();
-	env.decl(&String::from("print"), Value::Func(Rc::new(print_val)));
-	env.decl(&String::from("scan"), Value::Func(Rc::new(scan_val)));
+	env.decl("print", Value::Func(Rc::new(print_val)));
+	env.decl("scan", Value::Func(Rc::new(scan_val)));
 
 	let now = Instant::now();
 
