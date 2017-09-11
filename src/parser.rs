@@ -1,5 +1,6 @@
 
 use tokens::{Token};
+use position::{Position};
 use tree::{Tree};
 
 use std::rc::{Rc};
@@ -101,7 +102,7 @@ fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>
 
 		Some(Token::LeftPar(_)) => { let e = parse_tree(tokens); expect_rightpar(tokens); e },
 
-		x => panic!("expected identifier, number or '(', got {:?}", x)
+		x => fatal_tk("Expected identifier, number or '('", x),
 	};
 
 	match tokens.peek() {
@@ -115,13 +116,13 @@ fn parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Peekabl
 		Some(Token::Plus(_)) => Tree::Add(box_(e), box_(parse_simple_expr(tokens))),
 		Some(Token::Minus(_)) => Tree::Sub(box_(e), box_(parse_simple_expr(tokens))),
 
-		Some(Token::Assign(_)) => 
+		x @ Some(Token::Assign(_)) => 
 			match e {
 				Tree::Ident(name) => Tree::Assign(name, box_(parse_tree(tokens))),
-				x => panic!("expected identifier as left operand of assignation, got {:?}", x)
+				_ => fatal_tk("Expected identifier as left operand of assignation", x)
 			},
 
-		x => panic!("expected '+' or '-', got {:?}", x)
+		x => fatal_tk("Expected '+' or '-'", x),
 	}
 }
 
@@ -133,8 +134,8 @@ fn try_parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Pee
 			Some(&Token::Plus(_)) | Some(&Token::Minus(_)) | Some(&Token::Assign(_)) => e = parse_bin_op(e, tokens),
 			Some(&Token::Comma(_)) => { lst.push(e); tokens.next(); e = parse_simple_expr(tokens) },
 			Some(&Token::Arrow(_)) => { 
-				tokens.next();
-				e = Tree::Func(collect_args(e), Rc::new(parse_tree(tokens)));
+				let pos = tokens.next().unwrap().position();
+				e = Tree::Func(collect_args(e, pos), Rc::new(parse_tree(tokens)));
 			},
 			_ => break
 		}
@@ -148,15 +149,15 @@ fn try_parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Pee
 	}
 }
 
-fn collect_args(args: Tree) -> Vec<String> {
+fn collect_args(args: Tree, pos: Position) -> Vec<String> {
 	match args {
 		Tree::Ident(a) => vec![a.to_owned()],
 		Tree::ListLit(lst) => lst.into_iter().map(|e| 
 			match e { 
 				Tree::Ident(a) => a, 
-				_ => panic!("{:?} is not valid as an argument", e) 
+				_ => fatal_pos(&format!("{} is not valid as an argument", e), pos.clone()) 
 			}).collect(),
-		e => panic!("{:?} is not valid as an argument", e)
+		e => fatal_pos(&format!("{} is not valid as an argument", e), pos.clone())
 	}
 }
 
@@ -168,7 +169,7 @@ fn collect_args(args: Tree) -> Vec<String> {
 fn expect_ident<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> String {
 	match tokens.next() {
 		Some(Token::Ident(_, name)) => name.to_string(),
-		x => panic!("expected identifier, got {:?}", x)
+		x => fatal_tk("Expected identifier", x)
 	}
 }
 
@@ -176,62 +177,62 @@ fn expect_ident<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> 
 fn expect_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::Let(_)) => {},
-		x => panic!("expected 'let', got {:?}", x)
+		x => fatal_tk("Expected 'let'", x)
 	}
 }
 
 fn expect_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::If(_)) => {},
-		x => panic!("expected 'if', got {:?}", x)
+		x => fatal_tk("Expected 'if'", x)
 	}
 }
 
 fn expect_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::While(_)) => {},
-		x => panic!("expected 'while', got {:?}", x)
+		x => fatal_tk("Expected 'while'", x)
 	}
 }
 
 fn expect_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::For(_)) => {},
-		x => panic!("expected 'for', got {:?}", x)
+		x => fatal_tk("Expected 'for'", x)
 	}
 }
 
 fn expect_colon<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::Colon(_)) => {},
-		x => panic!("expected ':', got {:?}", x)
+		x => fatal_tk("Expected ':'", x)
 	}
 }
 
 fn expect_rightpar<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::RightPar(_)) => {}
-		x => panic!("expected ')', got {:?}", x)
+		x => fatal_tk("Expected ')'", x)
 	}
 }
 
 fn expect_leftbrace<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::LeftBrace(_)) => {}
-		x => panic!("expected '{{', got {:?}", x)
+		x => fatal_tk("Expected '{{'", x)
 	}
 }
 
 fn expect_assign<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::Assign(_)) => {}
-		x => panic!("expected '=', got {:?}", x)
+		x => fatal_tk("Expected '='", x)
 	}
 }
 
 fn expect_eof<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
-		Some(x) => panic!("unexpected {:?} at end of stream", x),
+		Some(x) => fatal(&format!("Unexpected {:?} at end of stream", x)),
 		None => {}
 	}
 }

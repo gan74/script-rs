@@ -34,22 +34,22 @@ fn scan_val(v: Value) -> Value {
 }
 
 fn main() {
-	/*let input = r#"{
-			let fun = (t, u) => t + u
+	let input = r#"{
+			let fun = (t, u + 1) => t + u
 			let lst = 7, 2, 5, 8, 6, 4, 9, 3, 2
 
 			let x = if fun(1, 2) { 1 } else { 2 }
 			for i : lst {
 				print(fun(i, 2))
 			}
-		}"#;*/
+		}"#;
 
-	let input = r#"{
-			let count = if scan("big?") 10000000 else 1000
+	/*let input = r#"{
+			let count = 10000000
 			while count {
 				count = count - 1
 			}
-		}"#;
+		}"#;*/
 
 
 

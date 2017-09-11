@@ -55,7 +55,7 @@ impl<'a> Tokenizer<'a> {
 				return Token::StrLit(self.tp(), &s[1..(s.len() - 1)]);
 			}
 		}
-		fatal("unterminated string literal", &self.tp());
+		fatal_pos("Unterminated string literal", self.tp());
 	}
 
 	fn next_ident(&mut self) -> Token<'a> {
@@ -117,7 +117,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 
 fn ident_type<'a>(word: &'a str, pos: Position) -> Token<'a> {
 	if word.chars().next().is_none() {
-		fatal("empty identifier", &pos);
+		fatal_pos("Empty identifier", pos);
 	}
 	match word {
 		"let" => Token::Let(pos.clone()),
