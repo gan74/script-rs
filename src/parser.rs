@@ -1,49 +1,37 @@
 
 use tokens::{Token};
-use ast::{Statement, Expression};
+use tree::{Tree};
 
 use std::rc::{Rc};
 use std::iter::{Peekable};
 
-use fatal::*;
+use utils::*;
 
 
 
 
-pub fn parse<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut T) -> Statement {
+pub fn parse<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut T) -> Tree {
 	let mut peekable = tokens.peekable();
-	let s = parse_stmt(&mut peekable);
+	let s = parse_tree(&mut peekable);
 	expect_eof(&mut peekable);
 	s
 }
 
-fn parse_stmt<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_tree<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	match tokens.peek() {
 		Some(&Token::Let(_)) => parse_let(tokens),
 		Some(&Token::If(_)) => parse_if(tokens),
 		Some(&Token::While(_)) => parse_while(tokens),
 		Some(&Token::For(_)) => parse_for(tokens),
 		Some(&Token::LeftBrace(_)) => parse_block(tokens),
-		_ => {
-			let e = parse_expr(tokens);
-			Statement::Expr(e)
-		}
+		_ => try_parse_bin_op(parse_simple_expr(tokens), tokens)
 	}
 }
 
-fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Expression {
-	try_parse_op(parse_simple_expr(tokens), tokens)
-}
 
 
 
-
-
-
-
-// ----------------------------------------- STATEMENTS -----------------------------------------
-
-fn parse_block<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_block<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	expect_leftbrace(tokens);
 	let mut stmts = Vec::new();
 	loop {
@@ -52,83 +40,84 @@ fn parse_block<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> S
 				tokens.next(); 
 				let len = stmts.len();
 				return match len {
-					0 => Statement::Unit,
+					0 => Tree::Unit,
 					1 => {
 						match stmts.first() { 
-							Some(&Statement::Decl(_, _)) => Statement::Block(stmts),
+							Some(&Tree::Decl(_, _)) => Tree::Block(stmts),
 							_ => stmts.pop().unwrap()
 						}
 					}
-					_ => Statement::Block(stmts)
+					_ => Tree::Block(stmts)
 				}
 			},
-			_ => stmts.push(parse_stmt(tokens)),
+			_ => stmts.push(parse_tree(tokens)),
 		}
 	}
 }
 
-fn parse_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	expect_let(tokens);
 	let name = expect_ident(tokens);
 	expect_assign(tokens);
-	Statement::Decl(name, parse_expr(tokens))
+	Tree::Decl(name, box_(parse_tree(tokens)))
 }
 
-fn parse_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	expect_if(tokens);
-	let cond = parse_expr(tokens);
-	let th = Box::new(parse_stmt(tokens));
-	let el = Box::new(match tokens.peek().cloned() {
-			Some(Token::Else(_)) => { tokens.next(); parse_stmt(tokens) },
-			x => { Statement::Unit }
+	let cond = box_(parse_tree(tokens));
+	let th = box_(parse_tree(tokens));
+	let el = box_(
+		match tokens.peek().cloned() {
+			Some(Token::Else(_)) => { tokens.next(); parse_tree(tokens) },
+			_ => Tree::Unit
 		});
-	Statement::If(cond, th, el)
+	Tree::If(cond, th, el)
 }
 
-fn parse_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	expect_while(tokens);
-	let cond = parse_expr(tokens);
-	Statement::While(cond, Box::new(parse_stmt(tokens)))
+	let cond = box_(parse_tree(tokens));
+	Tree::While(cond, box_(parse_tree(tokens)))
 }
 
-fn parse_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Statement {
+fn parse_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	expect_for(tokens);
 	let name = expect_ident(tokens);
 	expect_colon(tokens);
-	let lst = parse_expr(tokens);
-	Statement::For(name, lst, Box::new(parse_stmt(tokens)))
+	let lst = box_(parse_tree(tokens));
+	Tree::For(name, lst, box_(parse_tree(tokens)))
 }
 
 
 
 
-// ----------------------------------------- EXPRESSIONS -----------------------------------------
+// ----------------------------------------- Tree -----------------------------------------
 
-fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Expression {
+fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
 	let e = match tokens.next() {
-		Some(Token::Ident(_, name)) => Expression::Ident(name.to_string()),
-		Some(Token::StrLit(_, val)) => Expression::StrLit(val.to_string()),
-		Some(Token::NumLit(_, val)) => Expression::NumLit(val.parse().unwrap()),
+		Some(Token::Ident(_, name)) => Tree::Ident(name.to_string()),
+		Some(Token::StrLit(_, val)) => Tree::StrLit(val.to_string()),
+		Some(Token::NumLit(_, val)) => Tree::NumLit(val.parse().unwrap()),
 
-		Some(Token::LeftPar(_)) => { let e = parse_expr(tokens); expect_rightpar(tokens); e },
+		Some(Token::LeftPar(_)) => { let e = parse_tree(tokens); expect_rightpar(tokens); e },
 
 		x => panic!("expected identifier, number or '(', got {:?}", x)
 	};
 
 	match tokens.peek() {
-		Some(&Token::LeftPar(_)) => Expression::Call(Box::new(e), Box::new(parse_simple_expr(tokens))),
+		Some(&Token::LeftPar(_)) => Tree::Call(box_(e), box_(parse_simple_expr(tokens))),
 		_ => return e
 	} 
 }
 
-fn parse_op<'a, T: Iterator<Item = Token<'a>>>(e: Expression, tokens: &mut Peekable<T>) -> Expression {
+fn parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Peekable<T>) -> Tree {
 	match tokens.next() {
-		Some(Token::Plus(_)) => Expression::Add(Box::new(e), Box::new(parse_simple_expr(tokens))),
-		Some(Token::Minus(_)) => Expression::Sub(Box::new(e), Box::new(parse_simple_expr(tokens))),
+		Some(Token::Plus(_)) => Tree::Add(box_(e), box_(parse_simple_expr(tokens))),
+		Some(Token::Minus(_)) => Tree::Sub(box_(e), box_(parse_simple_expr(tokens))),
 
 		Some(Token::Assign(_)) => 
 			match e {
-				Expression::Ident(name) => Expression::Assign(name, Box::new(parse_expr(tokens))),
+				Tree::Ident(name) => Tree::Assign(name, box_(parse_tree(tokens))),
 				x => panic!("expected identifier as left operand of assignation, got {:?}", x)
 			},
 
@@ -136,16 +125,16 @@ fn parse_op<'a, T: Iterator<Item = Token<'a>>>(e: Expression, tokens: &mut Peeka
 	}
 }
 
-fn try_parse_op<'a, T: Iterator<Item = Token<'a>>>(e: Expression, tokens: &mut Peekable<T>) -> Expression {
+fn try_parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Peekable<T>) -> Tree {
 	let mut e = e;
 	let mut lst = Vec::new();
 	loop {
 		match tokens.peek() {
-			Some(&Token::Plus(_)) | Some(&Token::Minus(_)) | Some(&Token::Assign(_)) => e = parse_op(e, tokens),
+			Some(&Token::Plus(_)) | Some(&Token::Minus(_)) | Some(&Token::Assign(_)) => e = parse_bin_op(e, tokens),
 			Some(&Token::Comma(_)) => { lst.push(e); tokens.next(); e = parse_simple_expr(tokens) },
 			Some(&Token::Arrow(_)) => { 
 				tokens.next();
-				e = Expression::Func(check_args(e), Rc::new(parse_stmt(tokens)));
+				e = Tree::Func(collect_args(e), Rc::new(parse_tree(tokens)));
 			},
 			_ => break
 		}
@@ -155,16 +144,16 @@ fn try_parse_op<'a, T: Iterator<Item = Token<'a>>>(e: Expression, tokens: &mut P
 		e
 	} else {
 		lst.push(e);
-		Expression::ListLit(lst)
+		Tree::ListLit(lst)
 	}
 }
 
-fn check_args(args: Expression) -> Vec<String> {
+fn collect_args(args: Tree) -> Vec<String> {
 	match args {
-		Expression::Ident(a) => vec![a.to_owned()],
-		Expression::ListLit(lst) => lst.into_iter().map(|e| 
+		Tree::Ident(a) => vec![a.to_owned()],
+		Tree::ListLit(lst) => lst.into_iter().map(|e| 
 			match e { 
-				Expression::Ident(a) => a, 
+				Tree::Ident(a) => a, 
 				_ => panic!("{:?} is not valid as an argument", e) 
 			}).collect(),
 		e => panic!("{:?} is not valid as an argument", e)
@@ -219,14 +208,6 @@ fn expect_colon<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	}
 }
 
-
-fn expect_leftpar<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::LeftPar(_)) => {}
-		x => panic!("expected '(', got {:?}", x)
-	}
-}
-
 fn expect_rightpar<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
 	match tokens.next() {
 		Some(Token::RightPar(_)) => {}
@@ -238,13 +219,6 @@ fn expect_leftbrace<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>)
 	match tokens.next() {
 		Some(Token::LeftBrace(_)) => {}
 		x => panic!("expected '{{', got {:?}", x)
-	}
-}
-
-fn expect_rightbrace<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::RightBrace(_)) => {}
-		x => panic!("expected '}}', got {:?}", x)
 	}
 }
 

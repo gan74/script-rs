@@ -2,7 +2,7 @@
 use tokens::{Token};
 use position::{Position};
 
-use fatal::*;
+use utils::*;
 
 pub struct Tokenizer<'a> {
 	buffer: &'a str,

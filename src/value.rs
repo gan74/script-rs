@@ -50,23 +50,16 @@ impl Value {
 		}
 	}
 
-	pub fn to_bool(self) -> bool {
-		match self {
-			Value::Num(n) => n != 0.0,
-			x => panic!("{:?} is not a bool", x)
+	pub fn to_bool(self) -> bool {		
+		if let Some(n) = self.try_num() {
+			n != 0.0
+		} else {
+			panic!("{:?} is not a bool", self)
 		}
 	}
 
 	pub fn to_num(self) -> f64 {
-		fn try(val: &Value) -> Option<f64> {
-			match val {
-				&Value::Str(ref s) => s.parse().ok(),
-				&Value::Num(n) => Some(n),
-				_ =>  None
-			}
-		}
-
-		if let Some(n) = try(&self) {
+		if let Some(n) = self.try_num() {
 			n 
 		} else {
 			panic!("{:?} is not a number", self)
@@ -79,6 +72,14 @@ impl Value {
 			Value::Func(f) => f(args),
 
 			x => panic!("{:?} is not a function", x)
+		}
+	}
+
+	fn try_num(&self) -> Option<f64> {
+		match self {
+			&Value::Str(ref s) => s.parse().ok(),
+			&Value::Num(n) => Some(n),
+			_ =>  None
 		}
 	}
 }

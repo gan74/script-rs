@@ -3,8 +3,8 @@ mod tokens;
 mod position;
 mod tokenizer;
 mod parser;
-mod ast;
-mod fatal;
+mod tree;
+mod utils;
 mod value;
 mod eval;
 
@@ -34,26 +34,24 @@ fn scan_val(v: Value) -> Value {
 }
 
 fn main() {
-	/*/
-	let input = r#"{
+	/*let input = r#"{
 			let fun = (t, u) => t + u
 			let lst = 7, 2, 5, 8, 6, 4, 9, 3, 2
-			print(lst)
+
+			let x = if fun(1, 2) { 1 } else { 2 }
 			for i : lst {
 				print(fun(i, 2))
 			}
 		}"#;*/
 
 	let input = r#"{
-			let count = 10000000
+			let count = if scan("big?") 10000000 else 1000
 			while count {
 				count = count - 1
 			}
 		}"#;
 
-	
 
-	//println!("{:?}", Tokenizer::tokenize(input).collect::<Vec<_>>());
 
 	let ast = parse(&mut Tokenizer::tokenize(input));
 	println!("{}", ast);
@@ -64,7 +62,7 @@ fn main() {
 
 	let now = Instant::now();
 
-	eval_stmt(&ast, &mut env);
+	eval(&ast, &mut env);
 
 	let duration = now.elapsed();
 	println!("done in {}ms", (duration.as_secs() * 1000) as u32 + duration.subsec_nanos() / 1000000);
