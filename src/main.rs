@@ -1,4 +1,5 @@
 
+
 mod tokens;
 mod position;
 mod tokenizer;
@@ -18,7 +19,8 @@ use std::rc::{Rc};
 use std::time::{Instant};
 
 fn print_val(v: Value) -> Value {
-	println!("{}", v);
+	let string = v.to_str(); // is list
+	println!("{}", &string[1..string.len() - 1]);
 	Value::Unit
 }
 
@@ -33,15 +35,27 @@ fn scan_val(v: Value) -> Value {
 	}
 }
 
+fn map(v: Value) -> Value {
+	let args = v.to_list();
+	assert_eq!(args.len(), 2);
+
+	let mut args = args.into_iter();
+	let list = args.next().unwrap().to_list();
+	let func = args.next().unwrap();
+	println!("map {:?} {:?}", list, func);
+	let mapped = list.into_iter().map(|v| func.call(v));
+	Value::List(mapped.collect())
+}
+
 fn main() {
 	let input = r#"{
-			let fun = (t, u + 1) => t + u
-			let lst = 7, 2, 5, 8, 6, 4, 9, 3, 2
+			let zero = () => 0
+			let one = t => 0 + t
+			let two = (t, u) => t + (u + 2) - 1
 
-			let x = if fun(1, 2) { 1 } else { 2 }
-			for i : lst {
-				print(fun(i, 2))
-			}
+			print(zero())
+			print(one(1))
+			print(two(1, 2))
 		}"#;
 
 	/*let input = r#"{
@@ -53,11 +67,13 @@ fn main() {
 
 
 
+
 	let ast = parse(&mut Tokenizer::tokenize(input));
 	println!("{}", ast);
 
 	let mut env = Env::new();
 	env.decl("print", Value::Func(Rc::new(print_val)));
+	env.decl("map", Value::Func(Rc::new(map)));
 	env.decl("scan", Value::Func(Rc::new(scan_val)));
 
 	let now = Instant::now();

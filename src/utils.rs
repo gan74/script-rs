@@ -6,6 +6,12 @@ use position::{Position};
 use tokens::{Token};
 
 
+/*pub enum Either<A, B> {
+	Left(A),
+	Right(B)
+}*/
+
+
 pub fn fatal(msg: &str) -> ! {
 	println!("{}", msg);
 	exit(1)
@@ -13,7 +19,7 @@ pub fn fatal(msg: &str) -> ! {
 
 pub fn fatal_tk(msg: &str, tk: Option<Token>) -> ! {
 	if let Some(tk) = tk {
-		println!("{}, got {}, at {}", msg, tk, tk.position());
+		println!("{}, got '{}', at {}", msg, tk, tk.position());
 	} else {
 		println!("{}, got EOF", msg);
 	}

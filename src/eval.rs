@@ -5,7 +5,6 @@ use std::rc::{Rc};
 use tree::{Tree};
 use value::{Value};
 
-
 pub struct Env {
 	symbols: Vec<HashMap<String, Value>>
 }
@@ -16,7 +15,6 @@ impl Env {
 			symbols: vec![HashMap::new()]
 		}
 	}
-
 
 	pub fn decl(&mut self, name: &str, val: Value) {
 		for h in self.symbols.iter().rev() {
@@ -33,7 +31,7 @@ impl Env {
 			    return v;
 			}
 		}
-		panic!("{:?} was not declared", name);
+		panic!("{:?} has not been declared", name);
 	}
 
 	fn push(&mut self) {
@@ -44,8 +42,6 @@ impl Env {
 		self.symbols.pop();
 	}
 }
-
-
 
 
 
@@ -101,7 +97,7 @@ fn eval_for(name: &str, lst: &Tree, body: &Tree, env: &mut Env) -> Value {
 fn eval_func(args: Vec<String>, body: Rc<Tree>) -> Rc<Fn(Value) -> Value> {	
 	match args.len() {
 
-		0 => Rc::new(move |params| { 
+		/*0 => Rc::new(move |params| { 
 			match params {
 				Value::Unit => (),
 				_ => panic!("Invalid number of arguments, expected none")
@@ -114,7 +110,7 @@ fn eval_func(args: Vec<String>, body: Rc<Tree>) -> Rc<Fn(Value) -> Value> {
 			let mut env = Env::new();
 			env.decl(&args[0], params);
 			eval(&*body, &mut env)
-		}),
+		}),*/
 
 		_ => Rc::new(move |params| {
 			let params = params.to_list();

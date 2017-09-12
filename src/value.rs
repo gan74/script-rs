@@ -67,9 +67,9 @@ impl Value {
 	}
 
 
-	pub fn call(self, args: Value) -> Value {
+	pub fn call(&self, args: Value) -> Value {
 		match self {
-			Value::Func(f) => f(args),
+			&Value::Func(ref f) => (*f)(args),
 
 			x => panic!("{:?} is not a function", x)
 		}
