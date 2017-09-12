@@ -42,24 +42,18 @@ fn map(v: Value) -> Value {
 	let mut args = args.into_iter();
 	let list = args.next().unwrap().to_list();
 	let func = args.next().unwrap();
-	println!("map {:?} {:?}", list, func);
-	let mapped = list.into_iter().map(|v| func.call(v));
+	let mapped = list.into_iter().map(|v| func.call(Value::List(vec![v])));
 	Value::List(mapped.collect())
 }
 
 fn main() {
 	let input = r#"{
-			let zero = () => 0
-			let one = t => 0 + t
-			let two = (t, u) => t * 1 + u 
+			let inc = t => t + 1
 
-			let x = 0
-			let y = 9
-			y = x = 1 * y + 2
-			print(x)
-			print(zero())
-			print(one(1))
-			print(two(1, 2))
+			let list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+			list = list + map(list, t => t + 10)
+
+			print(map(list, inc))
 		}"#;
 
 	/*let input = r#"{

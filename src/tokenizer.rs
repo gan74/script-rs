@@ -33,6 +33,8 @@ impl<'a> Tokenizer<'a> {
 			'/' => { self.advance(1); Token::Div(self.tp()) },
 			'(' => { self.advance(1); Token::LeftPar(self.tp()) },
 			')' => { self.advance(1); Token::RightPar(self.tp()) },
+			'[' => { self.advance(1); Token::LeftBracket(self.tp()) },
+			']' => { self.advance(1); Token::RightBracket(self.tp()) },
 			'{' => { self.advance(1); Token::LeftBrace(self.tp()) },
 			'}' => { self.advance(1); Token::RightBrace(self.tp()) },
 			'0'...'9' => self.next_num(),

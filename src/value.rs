@@ -92,7 +92,14 @@ impl Add<Value> for Value {
 		match self {
 			Value::Str(s) => Value::Str(s + &rhs.to_str()),
 			Value::Num(n) => Value::Num(n + rhs.to_num()),
-			Value::List(mut v) => { v.push(rhs); Value::List(v) },
+			Value::List(mut v) => {
+				if let Value::List(mut r) = rhs {
+					v.append(&mut r);
+				} else {
+					v.push(rhs);
+				}
+				Value::List(v)
+			}
 
 			_ => panic!("{:?} and {:?} can not be added", self, rhs)
 		}

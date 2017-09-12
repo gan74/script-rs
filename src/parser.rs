@@ -110,6 +110,12 @@ fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>
 			try_parse_def(lst, tokens, t.position())
 		},
 
+		Some(Token::LeftBracket(_)) => {
+			let lst = parse_list(tokens);
+			expect_rightbracket(tokens);
+			Tree::ListLit(lst)
+		},
+
 		x => fatal_tk("Expected identifier, number or '('", x)
 	};
 
@@ -165,6 +171,23 @@ fn parse_paren<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> V
 		};
 	}
 }
+
+fn parse_list<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Vec<Tree> {
+	if let Some(&Token::RightBracket(_)) = tokens.peek() {
+		return Vec::new()
+	}
+	let mut lst = Vec::new();
+	loop {
+		lst.push(parse_tree(tokens));
+		match tokens.peek().cloned() {
+			Some(Token::Comma(_)) => tokens.next(),
+			Some(Token::RightBracket(_)) => return lst,
+
+			x => fatal_tk("Expected ',' or ']'", x)
+		};
+	}
+}
+
 
 fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekable<T>) -> Tree {
 	fn is_op(tk: &Option<Token>) -> bool {
@@ -280,6 +303,13 @@ fn expect_rightpar<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) 
 	match tokens.next() {
 		Some(Token::RightPar(_)) => {}
 		x => fatal_tk("Expected ')'", x)
+	}
+}
+
+fn expect_rightbracket<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
+	match tokens.next() {
+		Some(Token::RightBracket(_)) => {}
+		x => fatal_tk("Expected ']'", x)
 	}
 }
 

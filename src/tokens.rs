@@ -15,6 +15,9 @@ pub enum Token<'a> {
 	LeftPar(P),
 	RightPar(P),
 
+	LeftBracket(P),
+	RightBracket(P),
+
 	LeftBrace(P),
 	RightBrace(P),
 
@@ -45,6 +48,8 @@ impl<'a> Display for Token<'a> {
 			Token::NumLit(_, n) 	=> write!(f, "{}", n),
 			Token::LeftPar(_) 		=> write!(f, "("),
 			Token::RightPar(_) 		=> write!(f, ")"),
+			Token::LeftBracket(_) 	=> write!(f, "["),
+			Token::RightBracket(_) 	=> write!(f, "]"),
 			Token::LeftBrace(_) 	=> write!(f, "{{"),
 			Token::RightBrace(_) 	=> write!(f, "}}"),
 			Token::Assign(_) 		=> write!(f, "="),
@@ -72,6 +77,8 @@ impl<'a> Token<'a> {
 			Token::NumLit(p, _) 	=> p,
 			Token::LeftPar(p) 		=> p,
 			Token::RightPar(p) 		=> p,
+			Token::LeftBracket(p) 	=> p,
+			Token::RightBracket(p)	=> p,
 			Token::LeftBrace(p) 	=> p,
 			Token::RightBrace(p) 	=> p,
 			Token::Assign(p) 		=> p,
