@@ -64,7 +64,7 @@ impl<'a> Tokenizer<'a> {
 
 	fn next_ident(&mut self) -> Token<'a> {
 		for c in self.buffer.chars().enumerate() {
-			if !c.1.is_alphanumeric() {
+			if !c.1.is_alphanumeric() && c.1 != '_' {
 				return ident_type(self.advance(c.0), self.tp())
 			}
 		}
