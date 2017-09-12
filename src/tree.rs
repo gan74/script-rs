@@ -13,6 +13,8 @@ pub enum Tree {
 	Assign(Symbol, Box<Tree>),
 	Add(Box<Tree>, Box<Tree>),
 	Sub(Box<Tree>, Box<Tree>),
+	Mul(Box<Tree>, Box<Tree>),
+	Div(Box<Tree>, Box<Tree>),
 	
 	Call(Box<Tree>, Box<Tree>),
 
@@ -43,6 +45,8 @@ impl Display for Tree {
 			&Tree::Assign(ref l, ref r) => write!(f, "{} = {}", l, r),
 			&Tree::Add(ref l, ref r) => write!(f, "({} + {})", l, r),
 			&Tree::Sub(ref l, ref r) => write!(f, "({} - {})", l, r),
+			&Tree::Mul(ref l, ref r) => write!(f, "({} * {})", l, r),
+			&Tree::Div(ref l, ref r) => write!(f, "({} / {})", l, r),
 			&Tree::Call(ref o, ref a) => write!(f, "{}({})", o, a),
 			&Tree::Func(ref a, ref b) => write!(f, "({}) => {}", concat(a), b),
 			&Tree::Ident(ref name) => write!(f, "{}", name),

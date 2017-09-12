@@ -1,6 +1,6 @@
 
 use std::fmt::{Debug, Display, Result, Formatter};
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, Mul, Div};
 use std::rc::{Rc};
 
 #[derive(Clone)]
@@ -110,4 +110,31 @@ impl Sub<Value> for Value {
 		}
 	}
 }
+
+impl Mul<Value> for Value {
+	type Output = Value;
+
+	fn mul(self, rhs: Value) -> Value {
+		match self {
+			//Value::Str(s) => Value::Str(s * rhs.to_num()),
+			Value::Num(n) => Value::Num(n * rhs.to_num()),
+			//Value::List(mut v) => { Value::List(v * rhs.to_num()) },
+
+			_ => panic!("{:?} and {:?} can not be multiplied", self, rhs)
+		}
+	}
+}
+
+impl Div<Value> for Value {
+	type Output = Value;
+
+	fn div(self, rhs: Value) -> Value {
+		match self {
+			Value::Num(n) => Value::Num(n / rhs.to_num()),
+
+			_ => panic!("{:?} and {:?} can not be divided", self, rhs)
+		}
+	}
+}
+
 

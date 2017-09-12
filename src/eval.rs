@@ -61,6 +61,8 @@ pub fn eval(stmt: &Tree, env: &mut Env) -> Value {
 		&Tree::Assign(ref name, ref rhs) => { let rhs = eval(rhs, env); *env.get(name) = rhs.clone(); rhs },
 		&Tree::Add(ref lhs, ref rhs) => { eval(lhs, env) + eval(rhs, env) },
 		&Tree::Sub(ref lhs, ref rhs) => { eval(lhs, env) - eval(rhs, env) },
+		&Tree::Mul(ref lhs, ref rhs) => { eval(lhs, env) * eval(rhs, env) },
+		&Tree::Div(ref lhs, ref rhs) => { eval(lhs, env) / eval(rhs, env) },
 
 		&Tree::Call(ref f, ref a) => eval(f, env).call(eval(a, env)),
 		&Tree::Func(ref a, ref b) => Value::Func(eval_func(a.clone(), b.clone())),

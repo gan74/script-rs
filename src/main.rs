@@ -51,8 +51,12 @@ fn main() {
 	let input = r#"{
 			let zero = () => 0
 			let one = t => 0 + t
-			let two = (t, u) => t + (u + 2) - 1
+			let two = (t, u) => t * 1 + u 
 
+			let x = 0
+			let y = 9
+			y = x = 1 * y + 2
+			print(x)
 			print(zero())
 			print(one(1))
 			print(two(1, 2))

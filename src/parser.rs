@@ -25,7 +25,7 @@ fn parse_tree<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tr
 		Some(&Token::While(_)) => parse_while(tokens),
 		Some(&Token::For(_)) => parse_for(tokens),
 		Some(&Token::LeftBrace(_)) => parse_block(tokens),
-		_ => parse_bin_op(parse_simple_expr(tokens), tokens)
+		_ => parse_expr(parse_simple_expr(tokens), tokens)
 	}
 }
 
@@ -99,7 +99,10 @@ fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>
 		Some(Token::StrLit(_, val)) => Tree::StrLit(val.to_string()),
 		Some(Token::NumLit(_, val)) => Tree::NumLit(val.parse().unwrap()),
 
-		Some(Token::Ident(pos, name)) => try_parse_def(vec![Tree::Ident(name.to_owned())], tokens, pos),
+		Some(Token::Ident(pos, name)) => {
+			let lhs = parse_ident(name, tokens);
+			try_parse_def(vec![lhs], tokens, pos)
+		}
 
 		Some(t @ Token::LeftPar(_)) => { 
 			let lst = parse_paren(tokens); 
@@ -138,6 +141,15 @@ fn try_parse_def<'a, T: Iterator<Item = Token<'a>>>(args: Vec<Tree>, tokens: &mu
 	}
 }
 
+fn parse_ident<'a, T: Iterator<Item = Token<'a>>>(name: &str, tokens: &mut Peekable<T>) -> Tree {
+	if let Some(&Token::Assign(_)) = tokens.peek() {
+		tokens.next();
+		Tree::Assign(name.to_owned(), box_(parse_tree(tokens)))
+	} else {
+		Tree::Ident(name.to_owned())
+	}
+}
+
 fn parse_paren<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Vec<Tree> {
 	if let Some(&Token::RightPar(_)) = tokens.peek() {
 		return Vec::new()
@@ -154,22 +166,65 @@ fn parse_paren<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> V
 	}
 }
 
-fn parse_bin_op<'a, T: Iterator<Item = Token<'a>>>(e: Tree, tokens: &mut Peekable<T>) -> Tree {
-	let mut e = e;
-	loop {
-		match tokens.peek().cloned() {
-			Some(Token::Plus(_)) => { tokens.next(); e = Tree::Add(box_(e), box_(parse_simple_expr(tokens))) },
-			Some(Token::Minus(_)) => { tokens.next(); e = Tree::Sub(box_(e), box_(parse_simple_expr(tokens))) },
+fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekable<T>) -> Tree {
+	fn is_op(tk: &Option<Token>) -> bool {
+		match tk {
+			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) | &Some(Token::Times(_)) | &Some(Token::Div(_)) => true,
+			&Some(Token::Assign(_)) => true,
+			_ => false
+		}
+	}
 
-			x @ Some(Token::Assign(_)) => {
-				tokens.next();
-				e = match e {
-					Tree::Ident(name) => Tree::Assign(name, box_(parse_tree(tokens))),
-					_ => fatal_tk("Expected identifier as left operand of assignation", x)
+	fn create_op(lhs: Tree, rhs: Tree, tk: Option<Token>) -> Tree {
+		match tk {
+			Some(Token::Plus(_)) => Tree::Add(box_(lhs), box_(rhs)),
+			Some(Token::Minus(_)) => Tree::Sub(box_(lhs), box_(rhs)),
+			Some(Token::Times(_)) => Tree::Mul(box_(lhs), box_(rhs)),
+			Some(Token::Div(_)) => Tree::Div(box_(lhs), box_(rhs)),
+			Some(Token::Assign(pos)) => {
+				match lhs {
+					Tree::Ident(name) => Tree::Assign(name, box_(rhs)),
+					_ => fatal_pos("Expected identifier as left operand of assignation", pos)
 				}
 			},
+			_ => unreachable!()
+		}
+	} 
 
-			_ => return e
+	fn assoc(tk: &Option<Token>) -> i32 {
+		match tk {
+			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) => 1,
+			&Some(Token::Times(_)) | &Some(Token::Div(_)) => 2,
+			_ => unreachable!()
+		}
+	}
+
+
+	let mut first_op = tokens.peek().cloned();
+	if !is_op(&first_op) {
+		return lhs;
+	}
+	tokens.next();
+	let mut lhs = lhs;
+	let mut mhs = parse_simple_expr(tokens); 
+
+	loop {
+		let second_op = tokens.peek().cloned();
+
+		if is_op(&second_op) {
+			tokens.next();
+		} else {
+			return create_op(lhs, mhs, first_op)
+		}
+
+		let rhs = parse_simple_expr(tokens);
+
+		if assoc(&second_op) > assoc(&first_op) {
+			mhs = create_op(mhs, rhs, second_op);
+		} else {
+			lhs = create_op(lhs, mhs, first_op);
+			mhs = rhs;
+			first_op = second_op;
 		}
 	}
 }
