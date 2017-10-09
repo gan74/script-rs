@@ -1,15 +1,63 @@
-use std::fmt::{Display};
+
+use std::fmt::{Debug, Display, Formatter};
 
 use std::process::*;
 
 use position::{Position};
 use tokens::{Token};
 
+use std::fmt;
 
-/*pub enum Either<A, B> {
-	Left(A),
-	Right(B)
-}*/
+
+pub enum ErrorKind {
+	Boxed(Box<Error>),
+	Generic(String),
+	Undeclared(String),
+	AlreadyDeclared(String),
+	WrongArgCount(usize, usize)
+}
+
+pub struct Error {
+	tpe: ErrorKind,
+	pos: Position
+}
+
+impl ErrorKind {
+	pub fn with_position(self, pos: &Position) -> Error {
+		match self {
+			ErrorKind::Boxed(err) => *err,
+			tpe => 
+				Error {
+				tpe: tpe,
+				pos: pos.clone()
+			}
+		}
+	}
+}
+
+impl Debug for ErrorKind {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			&ErrorKind::Boxed(ref e) => write!(f, "{:?}", *e), 
+			&ErrorKind::Generic(ref s) => write!(f, "{}", s), 
+			&ErrorKind::Undeclared(ref s) => write!(f, "{} was not declared", s), 
+			&ErrorKind::AlreadyDeclared(ref s) => write!(f, "{} has already been declared", s), 
+			&ErrorKind::WrongArgCount(e, g) => write!(f, "expected {} arguments, got {}", e, g)
+		}
+	}
+}
+
+impl Debug for Error {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		write!(f, "{:?}, at {}", self.tpe, self.pos)
+	}
+}
+
+
+
+
+
+
 
 
 pub fn fatal(msg: &str) -> ! {
@@ -43,3 +91,5 @@ pub fn concat<T: Display>(lst: &[T]) -> String {
 pub fn box_<T>(t: T) -> Box<T> {
 	Box::new(t)
 }
+
+

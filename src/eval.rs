@@ -2,8 +2,12 @@
 use std::collections::{HashMap};
 use std::rc::{Rc};
 
-use tree::{Tree};
-use value::{Value};
+use ast::{Tree};
+use value::{FuncValue, Value};
+use position::{Position};
+
+use utils::{Error, ErrorKind, box_};
+
 
 pub struct Env {
 	symbols: Vec<HashMap<String, Value>>
@@ -16,22 +20,23 @@ impl Env {
 		}
 	}
 
-	pub fn decl(&mut self, name: &str, val: Value) {
+	pub fn decl(&mut self, name: &str, val: Value) -> Result<(), ErrorKind> {
 		for h in self.symbols.iter().rev() {
 			if let Some(_) = h.get(name) {
-				panic!("{:?} has already been declared", name);
+				return Err(ErrorKind::AlreadyDeclared(name.to_owned()));
 		    }
 		}
 		self.symbols.last_mut().unwrap().insert(name.to_owned(), val);
+		Ok(())
 	}
 
-	pub fn get(&mut self, name: &str) -> &mut Value {
+	pub fn get(&mut self, name: &str) -> Result<&mut Value, ErrorKind> {
 		for mut h in &mut self.symbols.iter_mut().rev() {
 			if let Some(v) = h.get_mut(name) {
-			    return v;
+			    return Ok(v);
 			}
 		}
-		panic!("{:?} has not been declared", name);
+		Err(ErrorKind::Undeclared(name.to_owned()))
 	}
 
 	fn push(&mut self) {
@@ -45,85 +50,74 @@ impl Env {
 
 
 
+fn with_pos<T>(r: Result<T, ErrorKind>, pos: &Position) -> Result<T, Error> {
+	r.map_err(|e| e.with_position(pos))
+}
 
-
-
-pub fn eval(stmt: &Tree, env: &mut Env) -> Value {
+pub fn eval(stmt: &Tree, env: &mut Env) -> Result<Value, Error> {
 	match stmt {
-		&Tree::Unit => Value::Unit,
+		&Tree::Unit    (_) => Ok(Value::Unit),
 
-		&Tree::Decl(ref name, ref rhs) => { let rhs = eval(rhs, env); env.decl(name, rhs); Value::Unit },
-		&Tree::Block(ref stmts) => eval_block(stmts, env),
-		&Tree::If(ref cond, ref th, ref el) => if eval(cond, env).to_bool() { eval(th, env) } else { eval(el, env) },
-		&Tree::While(ref cond, ref body) => { while eval(cond, env).to_bool() { eval(body, env); } Value::Unit },
-		&Tree::For(ref name, ref lst, ref body) => eval_for(name, lst, body, env),
+		&Tree::Decl    (ref p, ref name, ref rhs) => { let rhs = eval(rhs, env)?; with_pos(env.decl(name, rhs), p)?; Ok(Value::Unit) },
+		&Tree::Block   (_, ref stmts) => eval_block(stmts, env),
 
-		&Tree::Assign(ref name, ref rhs) => { let rhs = eval(rhs, env); *env.get(name) = rhs.clone(); rhs },
-		&Tree::Add(ref lhs, ref rhs) => { eval(lhs, env) + eval(rhs, env) },
-		&Tree::Sub(ref lhs, ref rhs) => { eval(lhs, env) - eval(rhs, env) },
-		&Tree::Mul(ref lhs, ref rhs) => { eval(lhs, env) * eval(rhs, env) },
-		&Tree::Div(ref lhs, ref rhs) => { eval(lhs, env) / eval(rhs, env) },
+		&Tree::If      (ref p, ref cond, ref th, ref el) => if with_pos(eval(cond, env)?.to_bool(), p)? { eval(th, env) } else { eval(el, env) },
+		&Tree::While   (ref p, ref cond, ref body) => { while with_pos(eval(cond, env)?.to_bool(), p)? { eval(body, env)?; } Ok(Value::Unit) },
 
-		&Tree::Call(ref f, ref a) => eval(f, env).call(eval(a, env)),
-		&Tree::Func(ref a, ref b) => Value::Func(eval_func(a.clone(), b.clone())),
+		&Tree::For     (_, ref name, ref lst, ref body) => eval_for(name, lst, body, env),
 
-		&Tree::Ident(ref name) => env.get(name).clone(),
-		&Tree::StrLit(ref val) => Value::Str(val.clone()),
-		&Tree::NumLit(val) => Value::Num(val),
+		&Tree::Assign  (ref p, ref name, ref rhs) => { let rhs = eval(rhs, env)?; *with_pos(env.get(name), p)? = rhs.clone(); Ok(rhs) },
 
-		&Tree::ListLit(ref lst) => Value::List(lst.iter().map(|e| eval(e, env)).collect())
+		&Tree::Add     (ref p, ref lhs, ref rhs) => with_pos(eval(lhs, env)? + eval(rhs, env)?, p),
+		&Tree::Sub     (ref p, ref lhs, ref rhs) => with_pos(eval(lhs, env)? - eval(rhs, env)?, p),
+		&Tree::Mul     (ref p, ref lhs, ref rhs) => with_pos(eval(lhs, env)? * eval(rhs, env)?, p),
+		&Tree::Div     (ref p, ref lhs, ref rhs) => with_pos(eval(lhs, env)? / eval(rhs, env)?, p),
+
+		&Tree::Call    (ref p, ref f, ref a) => { let args = with_pos(eval(a, env)?.to_list(), p)?; with_pos(eval(f, env)?.call(args), p) },
+		&Tree::Func    (_, ref a, ref b) => Ok(Value::Func(eval_func(a.clone(), b.clone()))),
+
+		&Tree::Ident   (ref p, ref name) => with_pos(env.get(name).map(|i| i.clone()), p),
+		&Tree::StrLit  (_, ref val) => Ok(Value::Str(val.clone())),
+		&Tree::NumLit  (_, val) => Ok(Value::Num(val)),
+
+		&Tree::ListLit (_, ref lst) => Ok(Value::List(lst.iter().map(|e| eval(e, env)).collect::<Result<Vec<Value>, Error>>()?))
 	}
 }
 
-fn eval_block(block: &[Tree], env: &mut Env) -> Value {
+fn eval_block(block: &[Tree], env: &mut Env) -> Result<Value, Error> {
 	env.push(); 
 	let mut ret = Value::Unit;
 	for s in block { 
-	 	ret = eval(s, env); 
+	 	ret = eval(s, env)?; 
 	} 
 	env.pop();
-	ret
+	Ok(ret)
 }
 
-fn eval_for(name: &str, lst: &Tree, body: &Tree, env: &mut Env) -> Value {
+fn eval_for(name: &str, lst: &Tree, body: &Tree, env: &mut Env) -> Result<Value, Error> {
+	let pos = lst.position();
 	env.push(); 
-	env.decl(name, Value::Unit);
-	for e in eval(lst, env).to_list() { 
-		*env.get(name) = e; 
-		eval(body, env);
+	with_pos(env.decl(name, Value::Unit), &pos)?;
+	for e in with_pos(eval(lst, env)?.to_list(), &pos)? { 
+		*(with_pos(env.get(name), &pos)?) = e; 
+		eval(body, env)?;
 	}
 	env.pop();
-	Value::Unit
+	Ok(Value::Unit)
 }
 
-fn eval_func(args: Vec<String>, body: Rc<Tree>) -> Rc<Fn(Value) -> Value> {	
-	match args.len() {
+fn eval_func(args: Vec<String>, body: Rc<Tree>) -> FuncValue {
+	FuncValue {
+		args: args.len(),
 
-		/*0 => Rc::new(move |params| { 
-			match params {
-				Value::Unit => (),
-				_ => panic!("Invalid number of arguments, expected none")
-			}
-			let mut env = Env::new();
-			eval(&*body, &mut env)
-		}),
+		func: Rc::new(move |params| {
+			assert_eq!(params.len(), args.len());
 
-		1 => Rc::new(move |params| { 
-			let mut env = Env::new();
-			env.decl(&args[0], params);
-			eval(&*body, &mut env)
-		}),*/
-
-		_ => Rc::new(move |params| {
-			let params = params.to_list();
-			if params.len() != args.len() { 
-				panic!("Invalid number of arguments, expected {}, got {}", args.len(), params.len()); 
-			}
 			let mut env = Env::new();
 			for (i, p) in params.into_iter().enumerate() {
-				env.decl(&args[i], p);
+				env.decl(&args[i], p)?;
 			}
-			eval(&*body, &mut env)
+			eval(&*body, &mut env).map_err(|e| ErrorKind::Boxed(box_(e)))
 		})
 	}
 }

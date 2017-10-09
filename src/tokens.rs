@@ -1,4 +1,5 @@
 use std::fmt::{Display, Result, Formatter};
+
 use position::{Position};
 
 type P = Position;
