@@ -7,6 +7,7 @@ use std::fmt;
 use std::result;
 
 use utils::*;
+use eval::*;
 
 type Result<T> = result::Result<T, ErrorKind>;
 
@@ -14,7 +15,7 @@ type Result<T> = result::Result<T, ErrorKind>;
 #[derive(Clone)]
 pub struct FuncValue {
 	pub args: usize,
-	pub func: Rc<Fn(Vec<Value>) -> Result<Value>>
+	pub func: Rc<Fn(&mut Env, Vec<Value>) -> Result<Value>>
 }
 
 #[derive(Clone)]
@@ -55,7 +56,7 @@ impl Value {
 	pub fn from_func_1(func: fn(Value) -> Result<Value>) -> Value {
 		Value::Func(FuncValue {
 			args: 1,
-			func: Rc::new(move |v| {
+			func: Rc::new(move |_, v| {
 				let mut args = v.into_iter();
 				let a = args.next().unwrap();
 				func(a)
@@ -66,7 +67,7 @@ impl Value {
 	pub fn from_func_2(func: fn(Value, Value) -> Result<Value>) -> Value {
 		Value::Func(FuncValue {
 			args: 2,
-			func: Rc::new(move |v| {
+			func: Rc::new(move |_, v| {
 				let mut args = v.into_iter();
 				let a = args.next().unwrap();
 				let b = args.next().unwrap();
@@ -103,13 +104,13 @@ impl Value {
 		}
 	}
 
-	pub fn call(&self, args: Vec<Value>) -> Result<Value> {
+	pub fn call(&self, env: &mut Env, args: Vec<Value>) -> Result<Value> {
 		match self {
 			&Value::Func(ref f) => 
 				if args.len() != f.args {
 					return Err(ErrorKind::WrongArgCount(f.args, args.len()))
 				} else {
-					(*f.func)(args)
+					(*f.func)(env, args)
 				},
 
 			x => Err(ErrorKind::Generic(format!("{:?} is not a function", x)))

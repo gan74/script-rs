@@ -1,12 +1,9 @@
 
-
-use tokens::{Token};
-use position::{Position};
-use ast::{Tree};
-
-use std::rc::{Rc};
 use std::iter::{Peekable};
 
+use tokens::*;
+use position::*;
+use ast::*;
 use utils::*;
 
 
@@ -44,7 +41,7 @@ fn parse_block<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> T
 					0 => Tree::Unit(pos),
 					1 => {
 						match stmts.first() { 
-							Some(&Tree::Decl(_, _, _)) => Tree::Block(pos, stmts),
+							Some(&Tree::DeclByName(_, _, _)) => Tree::Block(pos, stmts),
 							_ => stmts.pop().unwrap()
 						}
 					}
@@ -60,7 +57,7 @@ fn parse_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tre
 	let pos = expect_let(tokens);
 	let name = expect_ident(tokens);
 	expect_assign(tokens);
-	Tree::Decl(pos, name, box_(parse_tree(tokens)))
+	Tree::DeclByName(pos, name, box_(parse_tree(tokens)))
 }
 
 fn parse_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
@@ -86,7 +83,7 @@ fn parse_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tre
 	let name = expect_ident(tokens);
 	expect_colon(tokens);
 	let lst = box_(parse_tree(tokens));
-	Tree::For(pos, name, lst, box_(parse_tree(tokens)))
+	Tree::ForByName(pos, name, lst, box_(parse_tree(tokens)))
 }
 
 
@@ -135,11 +132,11 @@ fn try_parse_def<'a, T: Iterator<Item = Token<'a>>>(args: Vec<Tree>, tokens: &mu
 		tokens.next();
 		let args = args.into_iter().map(|arg| {
 			match arg {
-				Tree::Ident(_, n) => n,
+				Tree::IdentByName(_, n) => n,
 				t => fatal_pos("Expected identifier, got expression", t.position())
 			}
 		}).collect();
-		Tree::Func(pos, args, Rc::new(parse_tree(tokens)))
+		Tree::FuncByName(pos, args, box_(parse_tree(tokens)))
 	} else {
 		match args.len() {
 			1 => args.into_iter().next().unwrap(),
@@ -152,9 +149,9 @@ fn parse_ident<'a, T: Iterator<Item = Token<'a>>>(name: &str, pos: Position, tok
 	let tk = tokens.peek().cloned();
 	if let Some(Token::Assign(p)) = tk {
 		tokens.next();
-		Tree::Assign(p, name.to_owned(), box_(parse_tree(tokens)))
+		Tree::AssignByName(p, name.to_owned(), box_(parse_tree(tokens)))
 	} else {
-		Tree::Ident(pos, name.to_owned())
+		Tree::IdentByName(pos, name.to_owned())
 	}
 }
 
@@ -208,7 +205,7 @@ fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekabl
 			Some(Token::Div(p)) => Tree::Div(p, box_(lhs), box_(rhs)),
 			Some(Token::Assign(pos)) => {
 				match lhs {
-					Tree::Ident(_, name) => Tree::Assign(pos, name, box_(rhs)),
+					Tree::IdentByName(_, name) => Tree::AssignByName(pos, name, box_(rhs)),
 					t => fatal_pos("Expected identifier as left operand of assignation", t.position())
 				}
 			},
@@ -290,7 +287,7 @@ fn expect_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> 
 fn expect_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
 	match tokens.next() {
 		Some(Token::For(p)) => p,
-		x => fatal_tk("Expected 'for'", x)
+		x => fatal_tk("Expected 'ForByName'", x)
 	}
 }
 

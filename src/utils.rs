@@ -2,17 +2,16 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use std::process::*;
-
-use position::{Position};
-use tokens::{Token};
-
 use std::fmt;
+
+use position::*;
+use tokens::*;
 
 
 pub enum ErrorKind {
 	Boxed(Box<Error>),
 	Generic(String),
-	Undeclared(String),
+	NotDeclared(String),
 	AlreadyDeclared(String),
 	WrongArgCount(usize, usize)
 }
@@ -40,7 +39,7 @@ impl Debug for ErrorKind {
 		match self {
 			&ErrorKind::Boxed(ref e) => write!(f, "{:?}", *e), 
 			&ErrorKind::Generic(ref s) => write!(f, "{}", s), 
-			&ErrorKind::Undeclared(ref s) => write!(f, "{} was not declared", s), 
+			&ErrorKind::NotDeclared(ref s) => write!(f, "{} was not declared", s), 
 			&ErrorKind::AlreadyDeclared(ref s) => write!(f, "{} has already been declared", s), 
 			&ErrorKind::WrongArgCount(e, g) => write!(f, "expected {} arguments, got {}", e, g)
 		}

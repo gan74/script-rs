@@ -1,7 +1,6 @@
 
-use tokens::{Token};
-use position::{Position};
-
+use tokens::*;
+use position::*;
 use utils::*;
 
 pub struct Tokenizer<'a> {
