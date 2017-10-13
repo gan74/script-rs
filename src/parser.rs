@@ -120,7 +120,7 @@ fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>
 		tokens.next();
 		let args = parse_paren(tokens);
 		expect_rightpar(tokens);
-		Tree::Call(p.clone(), box_(e), box_(Tree::ListLit(p, args)))
+		Tree::Call(p.clone(), box_(e), args)
 	} else {
 		e
 	}

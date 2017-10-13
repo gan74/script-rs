@@ -54,7 +54,10 @@ pub fn eval(stmt: &Tree, env: &mut Env) -> Result<Value, Error> {
 		&Tree::Eq            (_, ref lhs, ref rhs) => Ok(Value::Num(if eval(lhs, env)? == eval(rhs, env)? { 1.0 } else { 0.0 })),
 		&Tree::Neq           (_, ref lhs, ref rhs) => Ok(Value::Num(if eval(lhs, env)? == eval(rhs, env)? { 0.0 } else { 1.0 })),
 		&Tree::Not           (ref p, ref e) => { let v = eval(e, env)?; with_pos(!v, p) },
-		&Tree::Call          (ref p, ref f, ref a) => { let args = with_pos(eval(a, env)?.to_list(), p)?; with_pos(eval(f, env)?.call(env, args), p) },
+		&Tree::Call          (ref p, ref f, ref a) => { 
+			let args = a.iter().map(|e| eval(e, env)).collect::<Result<Vec<Value>, Error>>()?;
+			with_pos(eval(f, env)?.call(env, args), p)
+		},
 		&Tree::StrLit        (_, ref val) => Ok(Value::Str(val.clone())),
 		&Tree::NumLit        (_, val) => Ok(Value::Num(val)),
 		&Tree::ListLit       (_, ref lst) => Ok(Value::List(lst.iter().map(|e| eval(e, env)).collect::<Result<Vec<Value>, Error>>()?)),
