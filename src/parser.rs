@@ -192,6 +192,7 @@ fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekabl
 	fn is_op(tk: &Option<Token>) -> bool {
 		match tk {
 			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) | &Some(Token::Times(_)) | &Some(Token::Div(_)) => true,
+			&Some(Token::Eq(_)) | &Some(Token::Neq(_)) => true,
 			&Some(Token::Assign(_)) => true,
 			_ => false
 		}
@@ -203,6 +204,8 @@ fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekabl
 			Some(Token::Minus(p)) => Tree::Sub(p, box_(lhs), box_(rhs)),
 			Some(Token::Times(p)) => Tree::Mul(p, box_(lhs), box_(rhs)),
 			Some(Token::Div(p)) => Tree::Div(p, box_(lhs), box_(rhs)),
+			Some(Token::Eq(p)) => Tree::Eq(p, box_(lhs), box_(rhs)),
+			Some(Token::Neq(p)) => Tree::Neq(p, box_(lhs), box_(rhs)),
 			Some(Token::Assign(pos)) => {
 				match lhs {
 					Tree::IdentByName(_, name) => Tree::AssignByName(pos, name, box_(rhs)),
@@ -215,6 +218,7 @@ fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekabl
 
 	fn assoc(tk: &Option<Token>) -> i32 {
 		match tk {
+			&Some(Token::Eq(_)) | &Some(Token::Neq(_)) => 0,
 			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) => 1,
 			&Some(Token::Times(_)) | &Some(Token::Div(_)) => 2,
 			_ => unreachable!()

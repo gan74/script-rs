@@ -1,6 +1,7 @@
 
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::{Add, Sub, Mul, Div};
+use std::ops::{Add, Sub, Mul, Div, Not};
+use std::cmp::{PartialEq};
 use std::rc::{Rc};
 
 use std::fmt;
@@ -18,7 +19,15 @@ pub struct FuncValue {
 	pub func: Rc<Fn(&mut Env, Vec<Value>) -> Result<Value>>
 }
 
-#[derive(Clone)]
+
+impl PartialEq<FuncValue> for FuncValue {
+	fn eq(&self, other: &FuncValue) -> bool {
+		self.args == other.args && Rc::ptr_eq(&self.func, &other.func)
+	}
+}
+
+
+#[derive(Clone, PartialEq)]
 pub enum Value {
 	Unit, 
 
@@ -185,5 +194,19 @@ impl Div<Value> for Value {
 		}
 	}
 }
+
+impl Not for Value {
+	type Output = Result<Value>;
+
+	fn not(self) -> Self::Output {
+		if let Some(n) = self.try_num() {
+			Ok(Value::Num(if n == 0.0 { 1.0 } else { 0.0 }))
+		} else {
+			Err(ErrorKind::Generic(format!("{:?} is not a bool", self)))
+		}
+	}
+}
+
+
 
 

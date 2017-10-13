@@ -28,6 +28,10 @@ pub enum Token<'a> {
 	Times(P),
 	Div(P),
 
+	Eq(P),
+	Neq(P),
+	Not(P),
+
 	Comma(P),
 	Colon(P),
 
@@ -58,6 +62,9 @@ impl<'a> Display for Token<'a> {
 			Token::Minus(_) 		=> write!(f, "-"),
 			Token::Times(_) 		=> write!(f, "*"),
 			Token::Div(_) 			=> write!(f, "/"),
+			Token::Eq(_) 			=> write!(f, "=="),
+			Token::Neq(_) 			=> write!(f, "!="),
+			Token::Not(_) 			=> write!(f, "!"),
 			Token::Comma(_) 		=> write!(f, ","),
 			Token::Colon(_) 		=> write!(f, ":"),
 			Token::If(_) 			=> write!(f, "if"),
@@ -87,6 +94,9 @@ impl<'a> Token<'a> {
 			Token::Minus(p) 		=> p,
 			Token::Times(p) 		=> p,
 			Token::Div(p) 			=> p,
+			Token::Eq(p) 			=> p,
+			Token::Neq(p) 			=> p,
+			Token::Not(p) 			=> p,
 			Token::Comma(p) 		=> p,
 			Token::Colon(p) 		=> p,
 			Token::If(p) 			=> p,

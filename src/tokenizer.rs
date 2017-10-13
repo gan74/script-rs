@@ -22,10 +22,19 @@ impl<'a> Tokenizer<'a> {
 		let nx = chars.next().unwrap();
 		let pe = chars.next().clone();
 		match nx {
-			'=' if pe == Some('>') => { self.advance(2); Token::Arrow(self.tp()) },
+			'=' => match pe { 
+				Some('>') => { self.advance(2); Token::Arrow(self.tp()) },
+				Some('=') => { self.advance(2); Token::Eq(self.tp()) },
+				_ => { self.advance(1); Token::Assign(self.tp()) }
+			},
+
+			'!' => match pe {
+				Some('=') => { self.advance(2); Token::Neq(self.tp()) },
+				_ => { self.advance(1); Token::Not(self.tp()) },
+			},
+
 			',' => { self.advance(1); Token::Comma(self.tp()) },
 			':' => { self.advance(1); Token::Colon(self.tp()) },
-			'=' => { self.advance(1); Token::Assign(self.tp()) },
 			'+' => { self.advance(1); Token::Plus(self.tp()) },
 			'-' => { self.advance(1); Token::Minus(self.tp()) },
 			'*' => { self.advance(1); Token::Times(self.tp()) },

@@ -71,7 +71,7 @@ fn main() {
 			}
 
 			let i = 3
-			while (i - 2500) {
+			while (i != 2500) {
 				if is_prime(i) {
 					primes = primes + i
 				}
