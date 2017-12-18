@@ -29,6 +29,7 @@ pub enum TreeType<Name> {
     Neq(SubTree<Name>, SubTree<Name>),
 
     Block(Vec<UnboxedSubTree<Name>>, SubTree<Name>),
+    Tuple(Vec<UnboxedSubTree<Name>>),
 
     If(SubTree<Name>, SubTree<Name>, SubTree<Name>),
     While(SubTree<Name>, SubTree<Name>),
@@ -78,7 +79,12 @@ impl<Name> Tree<Name> {
         TreeType::Block(Vec::new(), Box::new(expr)).with_pos(pos)
     }
 
-
+    pub fn tuple_from_vec(exprs: Vec<UnboxedSubTree<Name>>, pos: Position) -> Tree<Name> {
+        match exprs.len() {
+            1 => exprs.into_iter().next().unwrap().tree,
+            _ => TreeType::Tuple(exprs)
+        }.with_pos(pos)
+    }
 
     pub fn for_each_subtree<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, mut f: F) {f(self);
         self.for_each_subtree_ref(&mut f);
@@ -96,6 +102,7 @@ impl<Name> Tree<Name> {
             TreeType::Eq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Neq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_subtree_ref(f); } expr.for_each_subtree_ref(f) },
+            TreeType::Tuple(ref elems) => for e in elems { e.for_each_subtree_ref(f); },
             TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_subtree_ref(f); thenp.for_each_subtree_ref(f); elsep.for_each_subtree_ref(f) }, 
             TreeType::While(ref cond, ref body) => { cond.for_each_subtree_ref(f); body.for_each_subtree_ref(f) }, 
 
@@ -127,6 +134,14 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                     r = r.and_then(|_| write!(f, "{}\n", s));
                 }
                 r.and_then(|_| write!(f, "{}\n}}", expr))
+            },
+
+            TreeType::Tuple(ref elems) => {
+                let mut r = write!(f, "(");
+                for e in elems {
+                    r = r.and_then(|_| write!(f, "{}, ", e));
+                }
+                r.and_then(|_| write!(f, ")"))
             },
             TreeType::If(ref cond, ref thenp, ref elsep) => 
                 if elsep.is_empty() { 

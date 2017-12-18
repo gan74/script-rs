@@ -65,6 +65,7 @@ impl<'a> Tokenizer<'a> {
                             Some('=') => { self.next_char(); TokenType::Eq },
                             _ => TokenType::Assign
                         },
+                        
                     '!' =>
                         match self.chars.clone().next() {
                             Some('=') => { self.next_char(); TokenType::Neq },

@@ -9,6 +9,7 @@ type Name = String;
 
 const FORCE_BLOCK_BRACES: bool = false;
 const ALLOW_BLOCK_IN_EXPR: bool = true;
+const ALLOW_TRAILING_COMMA: bool = true;
 
 
 
@@ -98,11 +99,32 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                 TokenType::StrLit(lit) => TreeType::StrLit(lit),
 
                 TokenType::LeftPar => {
-                    let expr = parse_expr(tokens);
-                    if let Some(Token { token: TokenType::RightPar, pos: _ }) = tokens.next() {
-                        return expr;
-                    } else {
-                        TreeType::Error("expected ')'")
+                    let mut elems = Vec::new();
+                    match tokens.peek().cloned() {
+                        Some(Token { token: TokenType::RightPar, pos: _ }) => {
+                            tokens.next();
+                            return Tree::tuple_from_vec(elems, pos);
+                        },
+                        _ => elems.push(parse_expr(tokens))
+                    }
+
+                    loop {
+                        match tokens.next() {
+                            Some(Token { token: TokenType::RightPar, pos: _ }) => return Tree::tuple_from_vec(elems, pos),
+                            Some(Token { token: TokenType::Comma, pos: _ }) => {
+                                if ALLOW_TRAILING_COMMA {
+                                    if let Some(Token { token: TokenType::RightPar, pos: _ }) = tokens.peek().cloned() {
+                                        tokens.next();
+                                        return Tree::tuple_from_vec(elems, pos);
+                                    }
+                                }
+                                elems.push(parse_expr(tokens));
+                            },
+                            tk => {
+                                elems.push(TreeType::Error("expected ',' or ')'").with_pos(error_pos(tk)));
+                                return Tree::tuple_from_vec(elems, pos);
+                            }
+                        }
                     }
                 },
 
@@ -121,12 +143,14 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                 },
 
                 TokenType::Let => {
-                    let a = tokens.next();
-                    let b = tokens.next();
-                    match (a, b) {
-                        (Some(Token { token: TokenType::Ident(name), pos: _ }),
-                         Some(Token { token: TokenType::Assign, pos: _ })) => TreeType::Def(name, Box::new(parse_expr(tokens))),
-                        _ => TreeType::Error("expected 'let', identifier then '='")
+                    if let Some(Token { token: TokenType::Ident(name), pos: _ }) = tokens.next() {
+                        if let Some(Token { token: TokenType::Assign, pos: _ }) = tokens.next() {
+                            TreeType::Def(name, Box::new(parse_expr(tokens)))
+                        } else {
+                            TreeType::Error("expected '='")
+                        }
+                    } else {
+                        TreeType::Error("expected identifier")
                     }
                 },
 
@@ -136,8 +160,6 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
         _ => eof_error()
     }
 }
-
-
 
 fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
     fn fetch_op<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Option<Token> {
@@ -208,4 +230,12 @@ fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
 
 fn eof_error() -> Tree<Name> {
     TreeType::Error("unexpected EOF").with_pos(Position::eof())
+}
+
+fn error_pos(tk: Option<Token>) -> Position {
+    if let Some(Token { token: _, pos }) = tk {
+        pos
+    } else {
+        Position::eof()
+    }
 }

@@ -70,7 +70,7 @@ impl fmt::Display for Position {
         if self.is_eof() {
             write!(f, "at EOF")
         } else {
-            write!(f, "in {} at line {}", self.filename, self.line)
+            write!(f, "in {} at line {}", self.filename, self.line + 1)
         }
     }
 }

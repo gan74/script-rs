@@ -12,6 +12,7 @@ pub enum Value {
     Str(String),
     Num(f64),
 
+    Tuple(Vec<Value>),
     List(Vec<Value>)
 }
 
@@ -26,13 +27,21 @@ impl Display for Value {
                 string.pop(); string.pop();
                 write!(f, "[{}]", string)
             }
+            &Value::Tuple(ref lst) => {
+                let mut string = lst.iter().fold(String::new(), |s, i| s + &format!("{}", i) + ", ");
+                string.pop(); string.pop();
+                write!(f, "({})", string)
+            }
         }
     }
 }
 
 impl Debug for Value {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            &Value::Str(ref s) => write!(f, "{:?}", s),
+            _ => write!(f, "{}", self)
+        }
     }
 }
 

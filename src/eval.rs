@@ -72,6 +72,9 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
             }
             eval(expr, env)
         },
+        TreeType::Tuple(ref elems) => {
+            Value::Tuple(elems.iter().map(|e| eval(e, env)).collect())
+        },
 
         TreeType::If(ref cond, ref thenp, ref elsep) => 
             if eval(cond, env).to_bool() {
