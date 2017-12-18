@@ -18,11 +18,15 @@ pub enum TreeType<Name> {
     Ident(Name),
 
     IntLit(i64),
+    StrLit(String),
 
     Add(SubTree<Name>, SubTree<Name>),
     Sub(SubTree<Name>, SubTree<Name>),
     Mul(SubTree<Name>, SubTree<Name>),
     Div(SubTree<Name>, SubTree<Name>),
+
+    Eq(SubTree<Name>, SubTree<Name>),
+    Neq(SubTree<Name>, SubTree<Name>),
 
     Block(Vec<UnboxedSubTree<Name>>, SubTree<Name>),
 
@@ -89,11 +93,13 @@ impl<Name> Tree<Name> {
             TreeType::Sub(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) },
             TreeType::Mul(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Div(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+            TreeType::Eq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+            TreeType::Neq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_subtree_ref(f); } expr.for_each_subtree_ref(f) },
             TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_subtree_ref(f); thenp.for_each_subtree_ref(f); elsep.for_each_subtree_ref(f) }, 
             TreeType::While(ref cond, ref body) => { cond.for_each_subtree_ref(f); body.for_each_subtree_ref(f) }, 
 
-            TreeType::Empty | TreeType::Ident(_) | TreeType::IntLit(_) | TreeType::Error(_) => (),
+            TreeType::Empty | TreeType::Ident(_) | TreeType::IntLit(_) | TreeType::StrLit(_) | TreeType::Error(_) => (),
         }
     }
 }
@@ -108,10 +114,13 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
             TreeType::Assign(ref name, ref rhs) => write!(f, "{} = {}", name, rhs),
             TreeType::Ident(ref name) => write!(f, "{}", name),
             TreeType::IntLit(val) => write!(f, "{}", val),
+            TreeType::StrLit(ref val) => write!(f, "\"{}\"", val),
             TreeType::Add(ref lhs, ref rhs) => write!(f, "({} + {})", lhs, rhs),
             TreeType::Sub(ref lhs, ref rhs) => write!(f, "({} - {})", lhs, rhs),
             TreeType::Mul(ref lhs, ref rhs) => write!(f, "{} * {}", lhs, rhs),
             TreeType::Div(ref lhs, ref rhs) => write!(f, "{} / {}", lhs, rhs),
+            TreeType::Eq(ref lhs, ref rhs) => write!(f, "{} == {}", lhs, rhs),
+            TreeType::Neq(ref lhs, ref rhs) => write!(f, "{} != {}", lhs, rhs),
             TreeType::Block(ref stats, ref expr) => {
                 let mut r = write!(f, "{{\n");
                 for s in stats {

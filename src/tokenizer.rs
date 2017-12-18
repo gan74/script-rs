@@ -60,7 +60,17 @@ impl<'a> Tokenizer<'a> {
                     continue;
                 }
                 return Some(match next_char {
-                    '=' => TokenType::Assign,
+                    '=' =>
+                        match self.chars.clone().next() {
+                            Some('=') => { self.next_char(); TokenType::Eq },
+                            _ => TokenType::Assign
+                        },
+                    '!' =>
+                        match self.chars.clone().next() {
+                            Some('=') => { self.next_char(); TokenType::Neq },
+                            _ => TokenType::Not
+                        },
+
                     '+' => TokenType::Plus,
                     '-' => TokenType::Minus,
                     '*' => TokenType::Star,

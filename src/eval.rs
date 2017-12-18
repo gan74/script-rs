@@ -56,11 +56,15 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
 
         TreeType::Ident(ref name) => env.get(name),
         TreeType::IntLit(val) => Value::Num(val as f64),
+        TreeType::StrLit(ref val) => Value::Str(val.clone()),
 
         TreeType::Add(ref lhs, ref rhs) => eval(lhs, env) + eval(rhs, env),
         TreeType::Sub(ref lhs, ref rhs) => eval(lhs, env) - eval(rhs, env),
         TreeType::Mul(ref lhs, ref rhs) => eval(lhs, env) * eval(rhs, env),
         TreeType::Div(ref lhs, ref rhs) => eval(lhs, env) / eval(rhs, env),
+
+        TreeType::Eq(ref lhs, ref rhs) => Value::Num(if eval(lhs, env) == eval(rhs, env) { 1.0 } else { 0.0 }),
+        TreeType::Neq(ref lhs, ref rhs) => Value::Num(if eval(lhs, env) != eval(rhs, env) { 1.0 } else { 0.0 }),
 
         TreeType::Block(ref stats, ref expr) => {
             for s in stats {

@@ -95,6 +95,8 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                         TreeType::Error("expected integer number")
                     },
 
+                TokenType::StrLit(lit) => TreeType::StrLit(lit),
+
                 TokenType::LeftPar => {
                     let expr = parse_expr(tokens);
                     if let Some(Token { token: TokenType::RightPar, pos: _ }) = tokens.next() {
@@ -149,6 +151,7 @@ fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name>
     fn is_bin_op(token: Option<&Token>) -> bool {
         if let Some(token) = token {
             match &token.token {
+                &TokenType::Eq | &TokenType::Neq => true,
                 &TokenType::Plus | &TokenType::Minus | &TokenType::Star | &TokenType::Slash => true,
                 _ => false
             }
@@ -159,6 +162,7 @@ fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name>
 
     fn bin_op_associativity(tk: &Token) -> i32 {
         match &tk.token {
+            &TokenType::Eq | &TokenType::Neq => 0,
             &TokenType::Plus | &TokenType::Minus => 1,
             &TokenType::Star | &TokenType::Slash => 2,
             _ => unreachable!()
@@ -192,11 +196,13 @@ fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name>
 
 fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
     match op.token {
+        TokenType::Eq => TreeType::Eq(Box::new(lhs), Box::new(rhs)),
+        TokenType::Neq => TreeType::Neq(Box::new(lhs), Box::new(rhs)),
         TokenType::Plus => TreeType::Add(Box::new(lhs), Box::new(rhs)),
         TokenType::Minus => TreeType::Sub(Box::new(lhs), Box::new(rhs)),
         TokenType::Star => TreeType::Mul(Box::new(lhs), Box::new(rhs)),
         TokenType::Slash => TreeType::Div(Box::new(lhs), Box::new(rhs)),
-        _ => TreeType::Error("expected '+', '-', '*' or '/'")
+        _ => TreeType::Error("expected '+', '-', '*', '/', '==' or '!='")
     }.with_pos(op.pos)
 }
 

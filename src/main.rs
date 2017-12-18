@@ -22,8 +22,10 @@ fn collect_errors<'a>(tree: &'a Tree<String>) -> Vec<&'a Tree<String>> {
 fn main() {
     let input = r#"{
         let x = 7
-        while x - 100000 {
+        let str = "" + x
+        while x != 100 {
             x = x + 1
+            str = str + " " + x
         }
         let y = 7
     }"#;
