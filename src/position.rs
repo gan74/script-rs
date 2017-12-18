@@ -2,7 +2,7 @@
 use std::cmp;
 use std::fmt;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Position {
     pub filename: String,
     pub line: usize,
@@ -57,7 +57,7 @@ impl Position {
         let col = cmp::min(len, self.col);
         let mut cursor = String::with_capacity(col + 1);
         for _ in 0..col {
-            cursor.push('-');
+            cursor.push('~');
         }
         cursor.push('^');
         String::from(&line[..len]) + "\n" + cursor.as_str()

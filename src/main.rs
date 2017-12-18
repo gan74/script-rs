@@ -21,14 +21,10 @@ fn collect_errors<'a>(tree: &'a Tree<String>) -> Vec<&'a Tree<String>> {
 
 fn main() {
     let input = r#"{
-        let x = 4
-        let str = "" + x
-        while x - 1 != 10 + 7 {
-            x = x + 1
-            str = str + " " + x
-        }
-        let y = (7, let z = x, )
-        let w = ("a")
+        let fun = (a, b) => { a + b }
+        let a = fun(1, 2)
+        let b = fun
+        let c = b(3, 0)
     }"#;
     let mut tokenizer = Tokenizer::tokenize(input.chars());
     let tree = parse(&mut tokenizer);

@@ -1,16 +1,22 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Sub, Mul, Div, Not};
+use std::rc::{Rc};
 
 use std::fmt;
 
+use tree::*;
+
+type Name = String;
 
 #[derive(Clone, PartialEq)]
-pub enum Value {
+pub enum Value { 
     Unit, 
 
     Str(String),
     Num(f64),
+
+    Func(Vec<Name>, Rc<Tree<Name>>),
 
     Tuple(Vec<Value>),
     List(Vec<Value>)
@@ -32,6 +38,11 @@ impl Display for Value {
                 string.pop(); string.pop();
                 write!(f, "({})", string)
             }
+            &Value::Func(ref bind, ref body) => {
+                let mut string = bind.iter().fold(String::new(), |s, i| s + &format!("{}", i) + ", ");
+                string.pop(); string.pop();
+                write!(f, "({}) => {}", string, body)
+            }
         }
     }
 }
@@ -52,9 +63,22 @@ impl Value {
 
     pub fn to_list(self) -> Vec<Value> {
         match self {
-            Value::List(lst) => lst.clone(),
-
+            Value::List(lst) => lst,
             x => panic!("{:?} is not a list", x)
+        }
+    }
+
+    pub fn to_tuple(self) -> Vec<Value> {
+        match self {
+            Value::Tuple(lst) => lst,
+            x => panic!("{:?} is not a tuple", x)
+        }
+    }
+
+    pub fn to_func(self) -> (Vec<Name>, Rc<Tree<Name>>) {
+        match self {
+            Value::Func(args, body) => (args, body),
+            x => panic!("{:?} is not a function", x)
         }
     }
 

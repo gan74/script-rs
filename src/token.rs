@@ -32,6 +32,8 @@ pub enum TokenType {
     Comma,
     Colon,
 
+    FatArrow,
+
     If,
     Else,
     While,

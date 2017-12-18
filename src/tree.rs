@@ -1,4 +1,5 @@
 use std::boxed::{Box};
+use std::rc::{Rc};
 use std::fmt;
 
 use position::*;
@@ -7,7 +8,7 @@ type UnboxedSubTree<Name> = Tree<Name>;
 type SubTree<Name> = Box<UnboxedSubTree<Name>>;
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TreeType<Name> {
 
     Empty,
@@ -20,6 +21,7 @@ pub enum TreeType<Name> {
     IntLit(i64),
     StrLit(String),
 
+
     Add(SubTree<Name>, SubTree<Name>),
     Sub(SubTree<Name>, SubTree<Name>),
     Mul(SubTree<Name>, SubTree<Name>),
@@ -27,6 +29,9 @@ pub enum TreeType<Name> {
 
     Eq(SubTree<Name>, SubTree<Name>),
     Neq(SubTree<Name>, SubTree<Name>),
+
+    Func(Vec<UnboxedSubTree<Name>>, Rc<UnboxedSubTree<Name>>),
+    Call(SubTree<Name>, Vec<UnboxedSubTree<Name>>),
 
     Block(Vec<UnboxedSubTree<Name>>, SubTree<Name>),
     Tuple(Vec<UnboxedSubTree<Name>>),
@@ -49,7 +54,7 @@ impl<Name> TreeType<Name> {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Tree<Name> {
     pub tree: TreeType<Name>,
     pub pos: Position
@@ -70,20 +75,21 @@ impl<Name> Tree<Name> {
         }
     }
 
-    pub fn block_from_vec(mut stats: Vec<UnboxedSubTree<Name>>, pos: Position) -> Tree<Name> {
-        let expr = stats.pop().unwrap_or(TreeType::Empty.with_pos(pos.clone()));
-        TreeType::Block(stats, Box::new(expr)).with_pos(pos)
+    pub fn name(&self) -> Option<&Name> {
+        match self.tree {
+            TreeType::Def(ref name, _) => Some(name),
+            TreeType::Assign(ref name, _) => Some(name),
+            TreeType::Ident(ref name) => Some(name),
+
+            _ => None
+        }
     }
 
-    pub fn block_from_expr(expr: UnboxedSubTree<Name>, pos: Position) -> Tree<Name> {
-        TreeType::Block(Vec::new(), Box::new(expr)).with_pos(pos)
-    }
-
-    pub fn tuple_from_vec(exprs: Vec<UnboxedSubTree<Name>>, pos: Position) -> Tree<Name> {
-        match exprs.len() {
-            1 => exprs.into_iter().next().unwrap().tree,
-            _ => TreeType::Tuple(exprs)
-        }.with_pos(pos)
+     pub fn ident_name(&self) -> Option<&Name> {
+        match self.tree {
+            TreeType::Ident(ref name) => Some(name),
+            _ => None
+        }
     }
 
     pub fn for_each_subtree<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, mut f: F) {f(self);
@@ -95,14 +101,21 @@ impl<Name> Tree<Name> {
         match self.tree {
             TreeType::Def(_, ref rhs) => rhs.for_each_subtree_ref(f),
             TreeType::Assign(_, ref rhs) => rhs.for_each_subtree_ref(f),
+
             TreeType::Add(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) },
             TreeType::Sub(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) },
             TreeType::Mul(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Div(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+
             TreeType::Eq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Neq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+
+            TreeType::Func(ref bind, ref body) => { for b in bind { b.for_each_subtree_ref(f); } body.for_each_subtree_ref(f) },
+            TreeType::Call(ref func, ref args) => { func.for_each_subtree_ref(f); for a in args { a.for_each_subtree_ref(f); } }, 
+
             TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_subtree_ref(f); } expr.for_each_subtree_ref(f) },
             TreeType::Tuple(ref elems) => for e in elems { e.for_each_subtree_ref(f); },
+
             TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_subtree_ref(f); thenp.for_each_subtree_ref(f); elsep.for_each_subtree_ref(f) }, 
             TreeType::While(ref cond, ref body) => { cond.for_each_subtree_ref(f); body.for_each_subtree_ref(f) }, 
 
@@ -117,17 +130,37 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tree {
             TreeType::Empty => write!(f, "()"),
+
             TreeType::Def(ref name, ref rhs) => write!(f, "let {} = {}", name, rhs),
             TreeType::Assign(ref name, ref rhs) => write!(f, "{} = {}", name, rhs),
             TreeType::Ident(ref name) => write!(f, "{}", name),
+
             TreeType::IntLit(val) => write!(f, "{}", val),
             TreeType::StrLit(ref val) => write!(f, "\"{}\"", val),
+
             TreeType::Add(ref lhs, ref rhs) => write!(f, "({} + {})", lhs, rhs),
             TreeType::Sub(ref lhs, ref rhs) => write!(f, "({} - {})", lhs, rhs),
             TreeType::Mul(ref lhs, ref rhs) => write!(f, "{} * {}", lhs, rhs),
             TreeType::Div(ref lhs, ref rhs) => write!(f, "{} / {}", lhs, rhs),
+
             TreeType::Eq(ref lhs, ref rhs) => write!(f, "{} == {}", lhs, rhs),
             TreeType::Neq(ref lhs, ref rhs) => write!(f, "{} != {}", lhs, rhs),
+
+            TreeType::Func(ref bind, ref body) => {
+                let mut r = write!(f, "(");
+                for b in bind {
+                    r = r.and_then(|_| write!(f, "{}, ", b));
+                }
+                r.and_then(|_| write!(f, ") => {}", body))
+            },
+            TreeType::Call(ref func, ref args) => {
+                let mut r = write!(f, "{}(", func);
+                for a in args {
+                    r = r.and_then(|_| write!(f, "{}, ", a));
+                }
+                r.and_then(|_| write!(f, ")"))
+            },
+
             TreeType::Block(ref stats, ref expr) => {
                 let mut r = write!(f, "{{\n");
                 for s in stats {
@@ -143,6 +176,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                 }
                 r.and_then(|_| write!(f, ")"))
             },
+
             TreeType::If(ref cond, ref thenp, ref elsep) => 
                 if elsep.is_empty() { 
                     write!(f, "if {} {}", cond, thenp)
@@ -150,6 +184,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                     write!(f, "if {} {} else {}", cond, thenp, elsep)
                 },
             TreeType::While(ref cond, ref body) => write!(f, "while {} {}", cond, body),
+
             TreeType::Error(err) => write!(f, "<error {}: {}>", self.pos, err),
 
             _ => write!(f, "???")

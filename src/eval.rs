@@ -58,6 +58,8 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
         TreeType::IntLit(val) => Value::Num(val as f64),
         TreeType::StrLit(ref val) => Value::Str(val.clone()),
 
+        TreeType::Func(ref bind, ref body) => Value::Func(bind.iter().map(|b| b.ident_name().unwrap().clone()).collect(), body.clone()),
+
         TreeType::Add(ref lhs, ref rhs) => eval(lhs, env) + eval(rhs, env),
         TreeType::Sub(ref lhs, ref rhs) => eval(lhs, env) - eval(rhs, env),
         TreeType::Mul(ref lhs, ref rhs) => eval(lhs, env) * eval(rhs, env),
@@ -65,6 +67,18 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
 
         TreeType::Eq(ref lhs, ref rhs) => Value::Num(if eval(lhs, env) == eval(rhs, env) { 1.0 } else { 0.0 }),
         TreeType::Neq(ref lhs, ref rhs) => Value::Num(if eval(lhs, env) != eval(rhs, env) { 1.0 } else { 0.0 }),
+
+        TreeType::Call(ref func, ref args) => {
+            let (params, body) = eval(func, env).to_func();
+            if args.len() != params.len() {
+                panic!("invalid number of arguments: expected {}, got {}", params.len(), args.len());
+            }
+            let mut inner = Env::new();
+            for (a, p) in args.into_iter().zip(params) {
+                inner.def(&p, eval(a, env));
+            }
+            eval(body.as_ref(), &mut inner)
+        },
 
         TreeType::Block(ref stats, ref expr) => {
             for s in stats {
