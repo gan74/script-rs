@@ -1,142 +1,121 @@
-
-use tokens::*;
 use position::*;
-use utils::*;
+use token::*;
 
+use std::str::{Chars};
+
+#[derive(Clone)]
 pub struct Tokenizer<'a> {
-	buffer: &'a str,
-	pos: Position
+    chars: Chars<'a>,
+    pos: Position
 }
 
 impl<'a> Tokenizer<'a> {
-	pub fn tokenize(buffer: &'a str) -> Tokenizer {
-		Tokenizer {
-			buffer: buffer,
-			pos: Position::new(String::from("string... "))
-		}
-	}
+    pub fn tokenize(chars: Chars<'a>) -> Tokenizer {
+        Tokenizer {
+            chars: chars,
+            pos: Position::new("string... ")
+        }
+    }
+
+    fn next_str(&mut self) -> TokenType {
+        let mut str_lit = String::new();
+        loop {
+            if let Some(c) = self.next_char() {
+                if c == '"' {
+                    return TokenType::StrLit(str_lit);
+                }
+                str_lit.push(c);
+            } else {
+                return TokenType::Error;
+            }
+        }
+        
+    }
+
+    fn next_num(&mut self, c: char) -> TokenType {
+        let len = self.chars.clone().take_while(|c| c.is_numeric()).count();
+        let mut num = String::with_capacity(len + 1);
+        num.push(c);
+        for _ in 0..len {
+            num.push(self.next_char().unwrap());
+        }
+        TokenType::NumLit(num)
+    }
+
+    fn next_ident_string(&mut self) -> &str {
+        let len = self.chars.clone().take_while(|c| c.is_alphanumeric()).count();
+        let r = &self.chars.as_str()[..len];
+         for _ in 0..len {
+           self.next_char();
+        }
+        r
+    }
 
 
-	fn next_token(&mut self) -> Token<'a> {
-		let mut chars = self.buffer.chars();
-		let nx = chars.next().unwrap();
-		let pe = chars.next().clone();
-		match nx {
-			'=' => match pe { 
-				Some('>') => { self.advance(2); Token::Arrow(self.tp()) },
-				Some('=') => { self.advance(2); Token::Eq(self.tp()) },
-				_ => { self.advance(1); Token::Assign(self.tp()) }
-			},
+    fn next_token(&mut self) -> Option<Token> {
+        loop {
+            let token_pos = self.pos.clone();
+            if let Some(next_char) = self.next_char() {
+                if next_char.is_whitespace() {
+                    continue;
+                }
+                return Some(match next_char {
+                    '=' => TokenType::Assign,
+                    '+' => TokenType::Plus,
+                    '-' => TokenType::Minus,
+                    '*' => TokenType::Star,
+                    '/' => TokenType::Slash,
+                    ',' => TokenType::Comma,
+                    ':' => TokenType::Colon,
+                    '(' => TokenType::LeftPar,
+                    ')' => TokenType::RightPar,
+                    '{' => TokenType::LeftBrace,
+                    '}' => TokenType::RightBrace,
+                    '[' => TokenType::LeftBracket,
+                    ']' => TokenType::RightBracket,
 
-			'!' => match pe {
-				Some('=') => { self.advance(2); Token::Neq(self.tp()) },
-				_ => { self.advance(1); Token::Not(self.tp()) },
-			},
+                    '"' => self.next_str(),
+                    c if c.is_numeric() => self.next_num(c),
+                    c if c.is_alphabetic() => 
+                        match (c, self.next_ident_string()) {
+                            ('i', "f") => TokenType::If,
+                            ('e', "lse") => TokenType::Else,
+                            ('l', "et") => TokenType::Let,
+                            (c, s) => {
+                                let mut name = String::with_capacity(s.len() + 1);
+                                name.push(c);
+                                name.push_str(s);
+                                TokenType::Ident(name)
+                            }
+                        },
+                    _ => TokenType::Error
 
-			',' => { self.advance(1); Token::Comma(self.tp()) },
-			':' => { self.advance(1); Token::Colon(self.tp()) },
-			'+' => { self.advance(1); Token::Plus(self.tp()) },
-			'-' => { self.advance(1); Token::Minus(self.tp()) },
-			'*' => { self.advance(1); Token::Times(self.tp()) },
-			'/' => { self.advance(1); Token::Div(self.tp()) },
-			'(' => { self.advance(1); Token::LeftPar(self.tp()) },
-			')' => { self.advance(1); Token::RightPar(self.tp()) },
-			'[' => { self.advance(1); Token::LeftBracket(self.tp()) },
-			']' => { self.advance(1); Token::RightBracket(self.tp()) },
-			'{' => { self.advance(1); Token::LeftBrace(self.tp()) },
-			'}' => { self.advance(1); Token::RightBrace(self.tp()) },
-			'0'...'9' => self.next_num(),
-			'"' => self.next_str(),
-			_ => self.next_ident(),
-		}
-	}
+                }.with_pos(token_pos));
+            } else {
+                return None;
+            }
+        }
+    }
 
-	fn next_num(&mut self) -> Token<'a> {
-		for c in self.buffer.chars().enumerate().skip(1) {
-			if !c.1.is_numeric() && c.1 != '.' {
-				return Token::NumLit(self.tp(), self.advance(c.0))
-			}
-		}
-		Token::NumLit(self.tp(), self.advance(self.buffer.len()))
-	}
+    
 
-	fn next_str(&mut self) -> Token<'a> {
-		for c in self.buffer.chars().enumerate().skip(1) {
-			if c.1 == '"' {
-				let s = self.advance(c.0 + 1);
-				return Token::StrLit(self.tp(), &s[1..(s.len() - 1)]);
-			}
-		}
-		fatal_pos("Unterminated string literal", self.tp());
-	}
+    fn next_char(&mut self) -> Option<char> {
+        let c = self.chars.next();
+        match c { 
+            Some('\n') => self.pos.next_line(),
+            _ => self.pos.next_col()
+        }
+        c
+    }
 
-	fn next_ident(&mut self) -> Token<'a> {
-		for c in self.buffer.chars().enumerate() {
-			if !c.1.is_alphanumeric() && c.1 != '_' {
-				return ident_type(self.advance(c.0), self.tp())
-			}
-		}
-		ident_type(self.advance(self.buffer.len()), self.tp())
-	}
-
-
-
-
-
-
-	fn advance(&mut self, len: usize) -> &'a str  {
-		self.pos.col += len;
-		let i = &self.buffer[..len];
-		self.buffer = &self.buffer[len..];
-		i
-	}
-
-	fn skip_whitespace(&mut self) {
-		for c in self.buffer.chars().enumerate() {
-			if !c.1.is_whitespace() {
-				self.buffer = &self.buffer[c.0..];
-				break;
-			} else if c.1 == '\n' {
-				self.pos.next_line();
-			} else {
-				self.pos.col += 1;
-			}
-		}
-	}
-
-	fn tp(&self) -> Position {
-		self.pos.clone()
-	}
 }
 
 
 impl<'a> Iterator for Tokenizer<'a> {
-	type Item = Token<'a>;
+    type Item = Token;
 
-	fn next(&mut self) -> Option<Self::Item> {
-		self.skip_whitespace();
-		if self.buffer.is_empty() {
-			None
-		} else {
-			Some(self.next_token())
- 		}
-	}
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_token()
+    }
 }
 
-
-
-
-
-fn ident_type<'a>(word: &'a str, pos: Position) -> Token<'a> {
-	if word.chars().next().is_none() {
-		fatal_pos("Empty identifier", pos);
-	}
-	match word {
-		"let" => Token::Let(pos.clone()),
-		"if" => Token::If(pos.clone()),
-		"else" => Token::Else(pos.clone()),
-		"while" => Token::While(pos.clone()),
-		"for" => Token::For(pos.clone()),
-		ident => Token::Ident(pos.clone(), ident)
-	}
-}

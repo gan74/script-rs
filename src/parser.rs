@@ -1,338 +1,198 @@
 
 use std::iter::{Peekable};
 
-use tokens::*;
+use tree::*;
+use token::*;
 use position::*;
-use ast::*;
-use utils::*;
+
+type Name = String;
+
+const FORCE_BLOCK_BRACES: bool = false;
+const ALLOW_BLOCK_IN_EXPR: bool = true;
 
 
 
-pub fn parse<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut T) -> Tree {
-	let mut peekable = tokens.peekable();
-	let s = parse_tree(&mut peekable);
-	expect_eof(&mut peekable);
-	s
-}
+pub fn parse<I: Iterator<Item = Token>>(tokens: &mut I) -> Tree<Name> {
+    let peekable = &mut tokens.peekable();
 
-fn parse_tree<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	match tokens.peek() {
-		Some(&Token::Let(_)) => parse_let(tokens),
-		Some(&Token::If(_)) => parse_if(tokens),
-		Some(&Token::While(_)) => parse_while(tokens),
-		Some(&Token::For(_)) => parse_for(tokens),
-		Some(&Token::LeftBrace(_)) => parse_block(tokens),
-		_ => parse_expr(parse_simple_expr(tokens), tokens)
-	}
-}
-
-
-
-
-fn parse_block<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let pos = expect_leftbrace(tokens);
-	let mut stmts = Vec::new();
-	loop {
-		match tokens.peek() {
-			Some(&Token::RightBrace(_)) => {
-				tokens.next(); 
-				let len = stmts.len();
-				return match len {
-					0 => Tree::Unit(pos),
-					1 => {
-						match stmts.first() { 
-							Some(&Tree::DeclByName(_, _, _)) => Tree::Block(pos, stmts),
-							_ => stmts.pop().unwrap()
-						}
-					}
-					_ => Tree::Block(pos, stmts)
-				}
-			},
-			_ => stmts.push(parse_tree(tokens)),
-		}
-	}
-}
-
-fn parse_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let pos = expect_let(tokens);
-	let name = expect_ident(tokens);
-	expect_assign(tokens);
-	Tree::DeclByName(pos, name, box_(parse_tree(tokens)))
-}
-
-fn parse_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let pos = expect_if(tokens);
-	let cond = box_(parse_tree(tokens));
-	let th = box_(parse_tree(tokens));
-	let el = box_(
-		match tokens.peek().cloned() {
-			Some(Token::Else(_)) => { tokens.next(); parse_tree(tokens) },
-			_ => Tree::Unit(pos.clone())
-		});
-	Tree::If(pos, cond, th, el)
-}
-
-fn parse_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let pos = expect_while(tokens);
-	let cond = box_(parse_tree(tokens));
-	Tree::While(pos, cond, box_(parse_tree(tokens)))
-}
-
-fn parse_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let pos = expect_for(tokens);
-	let name = expect_ident(tokens);
-	expect_colon(tokens);
-	let lst = box_(parse_tree(tokens));
-	Tree::ForByName(pos, name, lst, box_(parse_tree(tokens)))
+    let block = parse_block(peekable);
+    if block.is_error() {
+        block 
+    } else {
+        if let Some(Token { token: _ , pos }) = peekable.peek().cloned() {
+            let block_pos = block.pos.clone();
+            TreeType::Block(vec![block], Box::new(TreeType::Error("expected EOF").with_pos(pos))).with_pos(block_pos)
+        } else {
+            block
+        }
+    }
 }
 
 
+fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
+    fn parse_statements<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Vec<Tree<Name>> {
+        tokens.next();
+        let mut stats = Vec::new();
+        loop {
+            if let Some(Token { token, pos: _ }) =  tokens.peek().cloned() {
+                if token == TokenType::RightBrace {
+                    tokens.next();
+                    return stats;
+                }
+                stats.push(parse_expr(tokens));
+            } else {
+                stats.push(eof_error());
+                return stats;
+            }
+        }
+    }
 
-
-// ----------------------------------------- Tree -----------------------------------------
-
-fn parse_simple_expr<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Tree {
-	let e = match tokens.next() {
-		Some(Token::StrLit(p, val)) => Tree::StrLit(p, val.to_string()),
-		Some(Token::NumLit(p, val)) => Tree::NumLit(p, val.parse().unwrap()),
-
-		Some(Token::Ident(p, name)) => {
-			let lhs = parse_ident(name, p, tokens);
-			try_parse_def(vec![lhs], tokens)
-		}
-
-		Some(Token::LeftPar(_)) => { 
-			let lst = parse_paren(tokens); 
-			expect_rightpar(tokens); 
-			try_parse_def(lst, tokens)
-		},
-
-		Some(Token::LeftBracket(p)) => {
-			let lst = parse_list(tokens);
-			expect_rightbracket(tokens);
-			Tree::ListLit(p, lst)
-		},
-
-		x => fatal_tk("Expected identifier, number or '('", x)
-	};
-
-	if let Some(Token::LeftPar(p)) = tokens.peek().cloned() {
-		tokens.next();
-		let args = parse_paren(tokens);
-		expect_rightpar(tokens);
-		Tree::Call(p.clone(), box_(e), args)
-	} else {
-		e
-	}
-}
-
-fn try_parse_def<'a, T: Iterator<Item = Token<'a>>>(args: Vec<Tree>, tokens: &mut Peekable<T>) -> Tree {
-	let t = tokens.peek().cloned();
-	if let Some(Token::Arrow(pos)) = t {
-		tokens.next();
-		let args = args.into_iter().map(|arg| {
-			match arg {
-				Tree::IdentByName(_, n) => n,
-				t => fatal_pos("Expected identifier, got expression", t.position())
-			}
-		}).collect();
-		Tree::FuncByName(pos, args, box_(parse_tree(tokens)))
-	} else {
-		match args.len() {
-			1 => args.into_iter().next().unwrap(),
-			_ => fatal_tk("Expected '=>'", t)
-		}
-	}
-}
-
-fn parse_ident<'a, T: Iterator<Item = Token<'a>>>(name: &str, pos: Position, tokens: &mut Peekable<T>) -> Tree {
-	let tk = tokens.peek().cloned();
-	if let Some(Token::Assign(p)) = tk {
-		tokens.next();
-		Tree::AssignByName(p, name.to_owned(), box_(parse_tree(tokens)))
-	} else {
-		Tree::IdentByName(pos, name.to_owned())
-	}
-}
-
-fn parse_paren<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Vec<Tree> {
-	if let Some(&Token::RightPar(_)) = tokens.peek() {
-		return Vec::new()
-	}
-	let mut lst = Vec::new();
-	loop {
-		lst.push(parse_tree(tokens));
-		match tokens.peek().cloned() {
-			Some(Token::Comma(_)) => tokens.next(),
-			Some(Token::RightPar(_)) => return lst,
-
-			x => fatal_tk("Expected ',' or ')'", x)
-		};
-	}
-}
-
-fn parse_list<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Vec<Tree> {
-	if let Some(&Token::RightBracket(_)) = tokens.peek() {
-		return Vec::new()
-	}
-	let mut lst = Vec::new();
-	loop {
-		lst.push(parse_tree(tokens));
-		match tokens.peek().cloned() {
-			Some(Token::Comma(_)) => tokens.next(),
-			Some(Token::RightBracket(_)) => return lst,
-
-			x => fatal_tk("Expected ',' or ']'", x)
-		};
-	}
+    let next = tokens.peek().cloned();
+    if let Some(Token { token, pos }) = next {
+        if token == TokenType::LeftBrace {
+            Tree::block_from_vec(parse_statements(tokens), pos)
+        } else if !FORCE_BLOCK_BRACES {
+            Tree::block_from_expr(parse_expr(tokens), pos)
+        } else {
+            TreeType::Error("expected '{'").with_pos(pos)
+        }
+    } else {
+        eof_error()
+    }
 }
 
 
-fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(lhs: Tree, tokens: &mut Peekable<T>) -> Tree {
-	fn is_op(tk: &Option<Token>) -> bool {
-		match tk {
-			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) | &Some(Token::Times(_)) | &Some(Token::Div(_)) => true,
-			&Some(Token::Eq(_)) | &Some(Token::Neq(_)) => true,
-			&Some(Token::Assign(_)) => true,
-			_ => false
-		}
-	}
+fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
+    if ALLOW_BLOCK_IN_EXPR {
+        if let Some(Token { token: TokenType::LeftBrace, pos: _ }) = tokens.peek().cloned() {
+            return parse_block(tokens);
+        }
+    }
+    match tokens.next() {
+        Some(Token { token, pos }) =>
 
-	fn create_op(lhs: Tree, rhs: Tree, tk: Option<Token>) -> Tree {
-		match tk {
-			Some(Token::Plus(p)) => Tree::Add(p, box_(lhs), box_(rhs)),
-			Some(Token::Minus(p)) => Tree::Sub(p, box_(lhs), box_(rhs)),
-			Some(Token::Times(p)) => Tree::Mul(p, box_(lhs), box_(rhs)),
-			Some(Token::Div(p)) => Tree::Div(p, box_(lhs), box_(rhs)),
-			Some(Token::Eq(p)) => Tree::Eq(p, box_(lhs), box_(rhs)),
-			Some(Token::Neq(p)) => Tree::Neq(p, box_(lhs), box_(rhs)),
-			Some(Token::Assign(pos)) => {
-				match lhs {
-					Tree::IdentByName(_, name) => Tree::AssignByName(pos, name, box_(rhs)),
-					t => fatal_pos("Expected identifier as left operand of assignation", t.position())
-				}
-			},
-			_ => unreachable!()
-		}
-	} 
+            match token {
+                TokenType::Ident(name) => 
+                    match tokens.peek() {
+                        Some(&Token { token: TokenType::Assign, pos: _ }) => {
+                            tokens.next();
+                            TreeType::Assign(name, Box::new(parse_expr(tokens)))
+                        },
+                        _ => TreeType::Ident(name)
+                    },
 
-	fn assoc(tk: &Option<Token>) -> i32 {
-		match tk {
-			&Some(Token::Eq(_)) | &Some(Token::Neq(_)) => 0,
-			&Some(Token::Plus(_)) | &Some(Token::Minus(_)) => 1,
-			&Some(Token::Times(_)) | &Some(Token::Div(_)) => 2,
-			_ => unreachable!()
-		}
-	}
+                TokenType::NumLit(num) => 
+                    if let Ok(num) = num.parse::<i64>() {
+                        TreeType::IntLit(num)
+                    } else {
+                        TreeType::Error("expected integer number")
+                    },
 
+                TokenType::LeftPar => {
+                    let expr = parse_expr(tokens);
+                    if let Some(Token { token: TokenType::RightPar, pos: _ }) = tokens.next() {
+                        return expr;
+                    } else {
+                        TreeType::Error("expected ')'")
+                    }
+                },
 
-	let mut first_op = tokens.peek().cloned();
-	if !is_op(&first_op) {
-		return lhs;
-	}
-	tokens.next();
-	let mut lhs = lhs;
-	let mut mhs = parse_simple_expr(tokens); 
+                TokenType::If => {
+                    let cond = parse_expr(tokens);
+                    let thenp = parse_block(tokens);
 
-	loop {
-		let second_op = tokens.peek().cloned();
+                    let elsep = if let Some(Token { token: TokenType::Else, pos: _ }) = tokens.peek().cloned() {
+                        tokens.next();
+                        parse_block(tokens)
+                    } else {
+                        TreeType::Empty.with_pos(Position::eof())
+                    };
 
-		if is_op(&second_op) {
-			tokens.next();
-		} else {
-			return create_op(lhs, mhs, first_op)
-		}
+                    TreeType::If(Box::new(cond), Box::new(thenp), Box::new(elsep))
+                },
 
-		let rhs = parse_simple_expr(tokens);
+                TokenType::Let => {
+                    let a = tokens.next();
+                    let b = tokens.next();
+                    match (a, b) {
+                        (Some(Token { token: TokenType::Ident(name), pos: _ }),
+                         Some(Token { token: TokenType::Assign, pos: _ })) => TreeType::Def(name, Box::new(parse_expr(tokens))),
+                        _ => TreeType::Error("expected 'let', identifier then '='")
+                    }
+                },
 
-		if assoc(&second_op) > assoc(&first_op) {
-			mhs = create_op(mhs, rhs, second_op);
-		} else {
-			lhs = create_op(lhs, mhs, first_op);
-			mhs = rhs;
-			first_op = second_op;
-		}
-	}
+                _ => TreeType::Error("expected expression or '('")
+            }.with_pos(pos),
+
+        _ => eof_error()
+    }
 }
 
 
 
-// ----------------------------------------- HELPERS -----------------------------------------
+fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
+    fn fetch_op<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Option<Token> {
+        if is_bin_op(tokens.peek()) {
+            tokens.next()
+        } else {
+            None
+        }
+    }
 
-fn expect_ident<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> String {
-	match tokens.next() {
-		Some(Token::Ident(_, name)) => name.to_string(),
-		x => fatal_tk("Expected identifier", x)
-	}
+    fn is_bin_op(token: Option<&Token>) -> bool {
+        if let Some(token) = token {
+            match &token.token {
+                &TokenType::Plus | &TokenType::Minus | &TokenType::Star | &TokenType::Slash => true,
+                _ => false
+            }
+        } else {
+            false
+        } 
+    }
+
+    fn bin_op_associativity(tk: &Token) -> i32 {
+        match &tk.token {
+            &TokenType::Plus | &TokenType::Minus => 1,
+            &TokenType::Star | &TokenType::Slash => 2,
+            _ => unreachable!()
+        }
+    }
+
+    let mut left = parse_simple_expr(tokens);
+    let mut op = if let Some(op) = fetch_op(tokens) {
+        op
+    } else {
+        return left;
+    };
+    let mut middle = parse_simple_expr(tokens);
+    loop {
+        let op_2 = if let Some(op) = fetch_op(tokens) {
+            op
+        } else {
+            return create_bin_op(op, left, middle);
+        };
+        let right = parse_simple_expr(tokens);
+        if bin_op_associativity(&op) < bin_op_associativity(&op_2) {
+            middle = create_bin_op(op_2, middle, right);
+        } else {
+            left = create_bin_op(op, left, middle);
+            middle = right;
+            op = op_2;
+        }
+    }
 }
 
 
-fn expect_let<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
-	match tokens.next() {
-		Some(Token::Let(p)) => p,
-		x => fatal_tk("Expected 'let'", x)
-	}
+fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
+    match op.token {
+        TokenType::Plus => TreeType::Add(Box::new(lhs), Box::new(rhs)),
+        TokenType::Minus => TreeType::Sub(Box::new(lhs), Box::new(rhs)),
+        TokenType::Star => TreeType::Mul(Box::new(lhs), Box::new(rhs)),
+        TokenType::Slash => TreeType::Div(Box::new(lhs), Box::new(rhs)),
+        _ => TreeType::Error("expected '+', '-', '*' or '/'")
+    }.with_pos(op.pos)
 }
 
-fn expect_if<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
-	match tokens.next() {
-		Some(Token::If(p)) => p,
-		x => fatal_tk("Expected 'if'", x)
-	}
-}
-
-fn expect_while<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
-	match tokens.next() {
-		Some(Token::While(p)) => p,
-		x => fatal_tk("Expected 'while'", x)
-	}
-}
-
-fn expect_for<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
-	match tokens.next() {
-		Some(Token::For(p)) => p,
-		x => fatal_tk("Expected 'ForByName'", x)
-	}
-}
-
-fn expect_colon<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::Colon(_)) => {},
-		x => fatal_tk("Expected ':'", x)
-	}
-}
-
-fn expect_rightpar<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::RightPar(_)) => {},
-		x => fatal_tk("Expected ')'", x)
-	}
-}
-
-fn expect_rightbracket<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::RightBracket(_)) => {},
-		x => fatal_tk("Expected ']'", x)
-	}
-}
-
-fn expect_leftbrace<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Position {
-	match tokens.next() {
-		Some(Token::LeftBrace(p)) => p,
-		x => fatal_tk("Expected '{{'", x)
-	}
-}
-
-fn expect_assign<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(Token::Assign(_)) => {}
-		x => fatal_tk("Expected '='", x)
-	}
-}
-
-fn expect_eof<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) {
-	match tokens.next() {
-		Some(x) => fatal(&format!("Unexpected {:?} at end of stream", x)),
-		None => {}
-	}
+fn eof_error() -> Tree<Name> {
+    TreeType::Error("unexpected EOF").with_pos(Position::eof())
 }
