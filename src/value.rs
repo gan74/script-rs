@@ -1,11 +1,8 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Sub, Mul, Div, Not};
-use std::cmp::{PartialEq};
-use std::rc::{Rc};
 
 use std::fmt;
-use std::result;
 
 
 #[derive(Clone, PartialEq)]

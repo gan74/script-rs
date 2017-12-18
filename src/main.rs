@@ -1,3 +1,5 @@
+use std::time::{Instant};
+
 mod position;
 mod tokenizer;
 mod token;
@@ -19,12 +21,11 @@ fn collect_errors<'a>(tree: &'a Tree<String>) -> Vec<&'a Tree<String>> {
 
 fn main() {
     let input = r#"{
-        let shit = 7
-        if 1 + 2 {
-            let b = shit + 2
-            shit = b
-        } else { pwet }
-        let x = { 7 }
+        let x = 7
+        while x - 100000 {
+            x = x + 1
+        }
+        let y = 7
     }"#;
     let mut tokenizer = Tokenizer::tokenize(input.chars());
     let tree = parse(&mut tokenizer);
@@ -37,8 +38,13 @@ fn main() {
 
     println!("{}", tree);
 
+    let now = Instant::now();
+
     let mut env = Env::new();
     eval(&tree, &mut env);
 
+    let duration = now.elapsed();
+
+    println!("done in {}ms", (duration.as_secs() * 1000) as u32 + duration.subsec_nanos() / 1000000);
     println!("{:?}", env);
 }

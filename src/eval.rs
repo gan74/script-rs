@@ -58,6 +58,9 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
         TreeType::IntLit(val) => Value::Num(val as f64),
 
         TreeType::Add(ref lhs, ref rhs) => eval(lhs, env) + eval(rhs, env),
+        TreeType::Sub(ref lhs, ref rhs) => eval(lhs, env) - eval(rhs, env),
+        TreeType::Mul(ref lhs, ref rhs) => eval(lhs, env) * eval(rhs, env),
+        TreeType::Div(ref lhs, ref rhs) => eval(lhs, env) / eval(rhs, env),
 
         TreeType::Block(ref stats, ref expr) => {
             for s in stats {
@@ -73,6 +76,12 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
                 eval(elsep, env)
             },
 
+        TreeType::While(ref cond, ref body) => {
+            while eval(cond, env).to_bool() {
+                eval(body, env);
+            }
+            Value::Unit
+        },
        
         _ => panic!("\"{}\" not supported", tree)
     }

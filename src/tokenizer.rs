@@ -81,6 +81,7 @@ impl<'a> Tokenizer<'a> {
                             ('i', "f") => TokenType::If,
                             ('e', "lse") => TokenType::Else,
                             ('l', "et") => TokenType::Let,
+                            ('w', "hile") => TokenType::While,
                             (c, s) => {
                                 let mut name = String::with_capacity(s.len() + 1);
                                 name.push(c);

@@ -27,6 +27,7 @@ pub enum TreeType<Name> {
     Block(Vec<UnboxedSubTree<Name>>, SubTree<Name>),
 
     If(SubTree<Name>, SubTree<Name>, SubTree<Name>),
+    While(SubTree<Name>, SubTree<Name>),
 
     Error(&'static str)
 }
@@ -90,6 +91,7 @@ impl<Name> Tree<Name> {
             TreeType::Div(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
             TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_subtree_ref(f); } expr.for_each_subtree_ref(f) },
             TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_subtree_ref(f); thenp.for_each_subtree_ref(f); elsep.for_each_subtree_ref(f) }, 
+            TreeType::While(ref cond, ref body) => { cond.for_each_subtree_ref(f); body.for_each_subtree_ref(f) }, 
 
             TreeType::Empty | TreeType::Ident(_) | TreeType::IntLit(_) | TreeType::Error(_) => (),
         }
@@ -123,6 +125,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                 } else {
                     write!(f, "if {} {} else {}", cond, thenp, elsep)
                 },
+            TreeType::While(ref cond, ref body) => write!(f, "while {} {}", cond, body),
             TreeType::Error(err) => write!(f, "<error {}: {}>", self.pos, err),
 
             _ => write!(f, "???")

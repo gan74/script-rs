@@ -34,12 +34,19 @@ fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name
         tokens.next();
         let mut stats = Vec::new();
         loop {
-            if let Some(Token { token, pos: _ }) =  tokens.peek().cloned() {
-                if token == TokenType::RightBrace {
-                    tokens.next();
-                    return stats;
+            if let Some(Token { token, pos }) =  tokens.peek().cloned() {
+                match token {
+                    TokenType::RightBrace => {
+                        tokens.next();
+                        return stats;
+                    },
+                    TokenType::While => {
+                        tokens.next();
+                        let cond = parse_expr(tokens);
+                        stats.push(TreeType::While(Box::new(cond), Box::new(parse_block(tokens))).with_pos(pos));
+                    },
+                    _ => stats.push(parse_expr(tokens))
                 }
-                stats.push(parse_expr(tokens));
             } else {
                 stats.push(eof_error());
                 return stats;

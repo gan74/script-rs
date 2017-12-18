@@ -30,6 +30,7 @@ pub enum TokenType {
 
     If,
     Else,
+    While,
 
     Let,
 
