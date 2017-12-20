@@ -28,7 +28,8 @@ fn main() {
             } else {
                 rec(n - 1, rec) * n
             }
-        let x = facto(24, facto)
+        let x = facto(6, facto)
+        let y = ((a, b) => a + b) (x, 1)
     }"#;
     let mut tokenizer = Tokenizer::tokenize(input.chars());
     let mut tree = parse(&mut tokenizer);

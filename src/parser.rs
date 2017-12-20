@@ -16,7 +16,10 @@ const FOLD_TUPLE_1: bool = true;
 pub fn parse<I: Iterator<Item = Token>>(tokens: &mut I) -> Tree<Name> {
     let peekable = &mut tokens.peekable();
 
+    // parse block
     let block = parse_block(peekable);
+
+    // if error return immediatly, else check the iterator is empty
     if block.is_error() {
         block 
     } else {
@@ -29,32 +32,36 @@ pub fn parse<I: Iterator<Item = Token>>(tokens: &mut I) -> Tree<Name> {
     }
 }
 
-
 fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
+    // read statements until '}'
     fn parse_statements<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Vec<Tree<Name>> {
-        tokens.next();
         let mut stats = Vec::new();
         loop {
             if let Some(Token { token, pos }) =  tokens.peek().cloned() {
                 match token {
+                    // end of block, return
                     TokenType::RightBrace => {
                         tokens.next();
                         return stats;
                     },
+                    // while can only happen in blocks, so we parse it here
                     TokenType::While => {
                         tokens.next();
                         let cond = parse_expr(tokens);
                         stats.push(TreeType::While(Box::new(cond), Box::new(parse_block(tokens))).with_pos(pos));
                     },
+                    // generic statement
                     _ => stats.push(parse_expr(tokens))
                 }
             } else {
+                // we reached the end of the stream before the end of the block
                 stats.push(eof_error());
                 return stats;
             }
         }
     }
 
+    // build a block from a vec by taking the last statement and using it as the block return value (or put Empty if stats empty)
     fn block_from_vec(mut stats: Vec<Tree<Name>>, pos: Position) -> Tree<Name> {
         let expr = stats.pop().unwrap_or(TreeType::Empty.with_pos(pos.clone()));
         TreeType::Block(stats, Box::new(expr)).with_pos(pos)
@@ -64,9 +71,10 @@ fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name
         TreeType::Block(Vec::new(), Box::new(expr)).with_pos(pos)
     }
 
-    let next = tokens.peek().cloned();
-    if let Some(Token { token, pos }) = next {
+
+    if let Some(Token { token, pos }) = tokens.peek().cloned() {
         if token == TokenType::LeftBrace {
+            tokens.next();
             block_from_vec(parse_statements(tokens), pos)
         } else if !FORCE_BLOCK_BRACES {
             block_from_expr(parse_expr(tokens), pos)
@@ -78,15 +86,16 @@ fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name
     }
 }
 
-
+// parse a 'simple' expression (without binops)
 fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {        
     if let Some(Token { token: TokenType::LeftBrace, .. }) = tokens.peek().cloned() {
         return parse_block(tokens);
     }
 
     if let Some(Token { token, pos }) = tokens.next() {
-
         let expr = match token {
+
+            // ident or assign
             TokenType::Ident(name) => 
                 match tokens.peek() {
                     Some(&Token { token: TokenType::Assign, .. }) => {
@@ -96,6 +105,7 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                     _ => TreeType::Ident(name)
                 },
 
+            // number
             TokenType::NumLit(num) => 
                 if let Ok(num) = num.parse::<i64>() {
                     TreeType::IntLit(num)
@@ -103,46 +113,59 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                     TreeType::Error("expected integer number")
                 },
 
+            // string
             TokenType::StrLit(lit) => TreeType::StrLit(lit),
 
+            // parenthesised expression (like '(a + b)') or tuple
             TokenType::LeftPar => {
-                let tuple_from_vec = |elems: Vec<Tree<Name>>| {
+                fn tuple_from_vec(elems: Vec<Tree<Name>>) -> TreeType<Name> {
                     if FOLD_TUPLE_1 && elems.len() == 1 {
-                        return  elems.into_iter().next().unwrap();
+                        return  elems.into_iter().next().unwrap().tree;
                     } else {
-                        return TreeType::Tuple(elems).with_pos(pos.clone());
+                        return TreeType::Tuple(elems);
                     }
-                };
+                }
 
-                let mut elems = Vec::new();
-                match tokens.peek().cloned() {
-                    Some(Token { token: TokenType::RightPar, .. }) => {
+                // read until ')'
+                fn parse_tuple<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> TreeType<Name> {
+                    let mut elems = Vec::new();
+
+                    // if we get a ')' right away return an empty tuple
+                    if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
                         tokens.next();
                         return tuple_from_vec(elems);
-                    },
-                    _ => elems.push(parse_expr(tokens))
-                }
+                    } else { 
+                        elems.push(parse_expr(tokens))
+                    }
 
-                loop {
-                    match tokens.next() {
-                        Some(Token { token: TokenType::RightPar, .. }) => return tuple_from_vec(elems),
-                        Some(Token { token: TokenType::Comma, .. }) => {
-                            if ALLOW_TRAILING_COMMA {
-                                if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
-                                    tokens.next();
-                                    return TreeType::Tuple(elems).with_pos(pos.clone());
+                    // loop until ')'
+                    loop {
+                        match tokens.next() {
+                            // return element in tuples or as a single expression if there is only one
+                            Some(Token { token: TokenType::RightPar, .. }) => return tuple_from_vec(elems),
+
+                            Some(Token { token: TokenType::Comma, .. }) => {
+                                if ALLOW_TRAILING_COMMA {
+                                    // check for ')' in case the comma is empty, if it is (like: '(a, )'), force return a tuple
+                                    // to tuple_from_vec to convert back to a simple expression 
+                                    if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
+                                        tokens.next();
+                                        return TreeType::Tuple(elems);
+                                    }
                                 }
+                                elems.push(parse_expr(tokens));
+                            },
+                            tk => {
+                                elems.push(TreeType::Error("expected ',' or ')'").with_pos(error_pos(tk)));
+                                return tuple_from_vec(elems);
                             }
-                            elems.push(parse_expr(tokens));
-                        },
-                        tk => {
-                            elems.push(TreeType::Error("expected ',' or ')'").with_pos(error_pos(tk)));
-                            return tuple_from_vec(elems);
                         }
                     }
-                }
+                };
+                parse_tuple(tokens)
             },
 
+            // conditional branch
             TokenType::If => {
                 let cond = parse_expr(tokens);
                 let thenp = parse_block(tokens);
@@ -151,12 +174,13 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                     tokens.next();
                     parse_block(tokens)
                 } else {
-                    TreeType::Empty.with_pos(Position::eof())
+                    TreeType::Empty.with_pos(pos.clone())
                 };
 
                 TreeType::If(Box::new(cond), Box::new(thenp), Box::new(elsep))
             },
 
+            // definition
             TokenType::Let => {
                 if let Some(Token { token: TokenType::Ident(name), .. }) = tokens.next() {
                     if let Some(Token { token: TokenType::Assign, .. }) = tokens.next() {
@@ -169,21 +193,24 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                 }
             },
 
+            // parse error
             _ => TreeType::Error("expected expression or '('")
         };
 
+        // if the expression is followed by a parenthesied expression convert it to a call
         if let Some(Token { token: TokenType::LeftPar, pos }) = tokens.peek().cloned() {
-            
             let args = parse_simple_expr(tokens);
             TreeType::Call(Box::new(expr.with_pos(pos)), to_vec(args))
         } else {
             expr
         }.with_pos(pos)
+
     } else {
         eof_error()
     }
 }
 
+// parse a complex expression, (with binops and stuff)
 fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {
     fn fetch_op<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Option<Token> {
         if is_bin_op(tokens.peek()) {
@@ -240,6 +267,8 @@ fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name>
     }
 }
 
+
+// ------------------------------------------- helpers -------------------------------------------
 
 fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
     match op.token {

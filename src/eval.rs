@@ -74,9 +74,11 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
                 panic!("invalid number of arguments: expected {}, got {}", params.len(), args.len());
             }
             let mut inner = Env::new();
+            // declare all args in the called env
             for (a, p) in args.into_iter().zip(params) {
                 inner.def(&p, eval(a, env));
             }
+            // call
             eval(body.as_ref(), &mut inner)
         },
 
@@ -86,9 +88,8 @@ pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
             }
             eval(expr, env)
         },
-        TreeType::Tuple(ref elems) => {
-            Value::Tuple(elems.iter().map(|e| eval(e, env)).collect())
-        },
+
+        TreeType::Tuple(ref elems) => Value::Tuple(elems.iter().map(|e| eval(e, env)).collect()),
 
         TreeType::If(ref cond, ref thenp, ref elsep) => 
             if eval(cond, env).to_bool() {

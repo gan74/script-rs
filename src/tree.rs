@@ -52,6 +52,7 @@ impl<Name> TreeType<Name> {
 }
 
 
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Tree<Name> {
     pub tree: TreeType<Name>,
@@ -83,7 +84,7 @@ impl<Name> Tree<Name> {
         }
     }
 
-     pub fn ident_name(&self) -> Option<&Name> {
+    pub fn ident_name(&self) -> Option<&Name> {
         match self.tree {
             TreeType::Ident(ref name) => Some(name),
             _ => None
@@ -94,6 +95,7 @@ impl<Name> Tree<Name> {
         self.for_each_ref(&mut f);
     }
 
+    // helper for for_each
     fn for_each_ref<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, f: &mut F) {
         f(self);
         match self.tree {
@@ -128,6 +130,7 @@ impl<Name: Clone> Tree<Name> {
         self.transform_ref(&mut f)
     }
 
+    // helper for transform
     fn transform_ref<F: FnMut(TreeType<Name>) -> TreeType<Name>>(self, mut f: &mut F) -> Tree<Name> {
         let pos = self.pos.clone();
         match f(self.tree) {
