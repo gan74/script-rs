@@ -1,7 +1,7 @@
 use position::*;
 use token::*;
 
-use std::str::{Chars};
+use std::str::Chars;
 
 #[derive(Clone)]
 pub struct Tokenizer<'a> {

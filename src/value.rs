@@ -1,7 +1,7 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Sub, Mul, Div, Not};
-use std::rc::{Rc};
+use std::rc::Rc;
 
 use std::fmt;
 

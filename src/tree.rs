@@ -1,16 +1,16 @@
-use std::boxed::{Box};
-use std::rc::{Rc};
+use std::boxed::Box;
+use std::rc::Rc;
+use std::ops::*;
 use std::fmt;
 
 use position::*;
+use map_in_place::*;
 
 type UnboxedSubTree<Name> = Tree<Name>;
 type SubTree<Name> = Box<UnboxedSubTree<Name>>;
 
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TreeType<Name> {
-
     Empty,
 
     Def(Name, SubTree<Name>),
@@ -52,9 +52,7 @@ impl<Name> TreeType<Name> {
 }
 
 
-
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Tree<Name> {
     pub tree: TreeType<Name>,
     pub pos: Position
@@ -92,37 +90,72 @@ impl<Name> Tree<Name> {
         }
     }
 
-    pub fn for_each_subtree<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, mut f: F) {f(self);
-        self.for_each_subtree_ref(&mut f);
+    pub fn for_each<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, mut f: F) {
+        self.for_each_ref(&mut f);
     }
 
-    fn for_each_subtree_ref<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, f: &mut F) {
+    fn for_each_ref<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, f: &mut F) {
         f(self);
         match self.tree {
-            TreeType::Def(_, ref rhs) => rhs.for_each_subtree_ref(f),
-            TreeType::Assign(_, ref rhs) => rhs.for_each_subtree_ref(f),
+            TreeType::Def(_, ref rhs) => rhs.for_each_ref(f),
+            TreeType::Assign(_, ref rhs) => rhs.for_each_ref(f),
 
-            TreeType::Add(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) },
-            TreeType::Sub(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) },
-            TreeType::Mul(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
-            TreeType::Div(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+            TreeType::Add(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) },
+            TreeType::Sub(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) },
+            TreeType::Mul(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) }, 
+            TreeType::Div(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) }, 
 
-            TreeType::Eq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
-            TreeType::Neq(ref lhs, ref rhs) => { lhs.for_each_subtree_ref(f); rhs.for_each_subtree_ref(f) }, 
+            TreeType::Eq(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) }, 
+            TreeType::Neq(ref lhs, ref rhs) => { lhs.for_each_ref(f); rhs.for_each_ref(f) }, 
 
-            TreeType::Func(ref bind, ref body) => { for b in bind { b.for_each_subtree_ref(f); } body.for_each_subtree_ref(f) },
-            TreeType::Call(ref func, ref args) => { func.for_each_subtree_ref(f); for a in args { a.for_each_subtree_ref(f); } }, 
+            TreeType::Func(ref bind, ref body) => { for b in bind { b.for_each_ref(f); } body.for_each_ref(f) },
+            TreeType::Call(ref func, ref args) => { func.for_each_ref(f); for a in args { a.for_each_ref(f); } }, 
 
-            TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_subtree_ref(f); } expr.for_each_subtree_ref(f) },
-            TreeType::Tuple(ref elems) => for e in elems { e.for_each_subtree_ref(f); },
+            TreeType::Block(ref stats, ref expr) => { for s in stats { s.for_each_ref(f); } expr.for_each_ref(f) },
+            TreeType::Tuple(ref elems) => for e in elems { e.for_each_ref(f); },
 
-            TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_subtree_ref(f); thenp.for_each_subtree_ref(f); elsep.for_each_subtree_ref(f) }, 
-            TreeType::While(ref cond, ref body) => { cond.for_each_subtree_ref(f); body.for_each_subtree_ref(f) }, 
+            TreeType::If(ref cond, ref thenp, ref elsep) => { cond.for_each_ref(f); thenp.for_each_ref(f); elsep.for_each_ref(f) }, 
+            TreeType::While(ref cond, ref body) => { cond.for_each_ref(f); body.for_each_ref(f) }, 
 
             TreeType::Empty | TreeType::Ident(_) | TreeType::IntLit(_) | TreeType::StrLit(_) | TreeType::Error(_) => (),
         }
     }
 }
+
+
+impl<Name: Clone> Tree<Name> {
+    pub fn transform<F: FnMut(TreeType<Name>) -> TreeType<Name>>(self, mut f: F) -> Tree<Name> {
+        self.transform_ref(&mut f)
+    }
+
+    fn transform_ref<F: FnMut(TreeType<Name>) -> TreeType<Name>>(self, mut f: &mut F) -> Tree<Name> {
+        let pos = self.pos.clone();
+        match f(self.tree) {
+            TreeType::Def(name, rhs) => TreeType::Def(name, rhs.map_in_place(|t| t.transform_ref(f))),
+            TreeType::Assign(name, rhs) => TreeType::Assign(name, rhs.map_in_place(|t| t.transform_ref(f))),
+
+            TreeType::Add(lhs, rhs) => TreeType::Add(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))),
+            TreeType::Sub(lhs, rhs) => TreeType::Sub(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))),
+            TreeType::Mul(lhs, rhs) => TreeType::Mul(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))), 
+            TreeType::Div(lhs, rhs) => TreeType::Div(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))), 
+
+            TreeType::Eq(lhs, rhs) => TreeType::Eq(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))), 
+            TreeType::Neq(lhs, rhs) => TreeType::Neq(lhs.map_in_place(|t| t.transform_ref(f)), rhs.map_in_place(|t| t.transform_ref(f))), 
+
+            TreeType::Func(bind, body) => TreeType::Func(bind.into_iter().map(|t| t.transform_ref(f)).collect(), body.map_in_place(|t| t.transform_ref(f))),
+            TreeType::Call(func, args) => TreeType::Call(func.map_in_place(|t| t.transform_ref(f)), args.map_in_place(|t| t.transform_ref(f))),
+
+            TreeType::Block(stats, expr) => TreeType::Block(stats.map_in_place(|t| t.transform_ref(f)), expr.map_in_place(|t| t.transform_ref(f))),
+            TreeType::Tuple(elems) => TreeType::Tuple(elems.into_iter().map(|t| t.transform_ref(f)).collect()),
+
+            TreeType::If(cond, thenp, elsep) => TreeType::If(cond.map_in_place(|t| t.transform_ref(f)), thenp.map_in_place(|t| t.transform_ref(f)), elsep.map_in_place(|t| t.transform_ref(f))), 
+            TreeType::While(cond, body) => TreeType::While(cond.map_in_place(|t| t.transform_ref(f)), body.map_in_place(|t| t.transform_ref(f))), 
+
+            t => t,
+        }.with_pos(pos)
+    }
+}
+
 
 
 

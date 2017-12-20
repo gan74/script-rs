@@ -1,6 +1,6 @@
 
-use std::iter::{Peekable};
-use std::rc::{Rc};
+use std::iter::Peekable;
+use std::rc::Rc;
 
 use tree::*;
 use token::*;
@@ -11,7 +11,6 @@ type Name = String;
 const FORCE_BLOCK_BRACES: bool = false;
 const ALLOW_TRAILING_COMMA: bool = true;
 const FOLD_TUPLE_1: bool = true;
-
 
 
 pub fn parse<I: Iterator<Item = Token>>(tokens: &mut I) -> Tree<Name> {
@@ -81,7 +80,7 @@ fn parse_block<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name
 
 
 fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name> {        
-    if let Some(Token { token: TokenType::LeftBrace, pos: _ }) = tokens.peek().cloned() {
+    if let Some(Token { token: TokenType::LeftBrace, .. }) = tokens.peek().cloned() {
         return parse_block(tokens);
     }
 
@@ -90,7 +89,7 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
         let expr = match token {
             TokenType::Ident(name) => 
                 match tokens.peek() {
-                    Some(&Token { token: TokenType::Assign, pos: _ }) => {
+                    Some(&Token { token: TokenType::Assign, .. }) => {
                         tokens.next();
                         TreeType::Assign(name, Box::new(parse_expr(tokens)))
                     },
@@ -117,7 +116,7 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
 
                 let mut elems = Vec::new();
                 match tokens.peek().cloned() {
-                    Some(Token { token: TokenType::RightPar, pos: _ }) => {
+                    Some(Token { token: TokenType::RightPar, .. }) => {
                         tokens.next();
                         return tuple_from_vec(elems);
                     },
@@ -126,10 +125,10 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
 
                 loop {
                     match tokens.next() {
-                        Some(Token { token: TokenType::RightPar, pos: _ }) => return tuple_from_vec(elems),
-                        Some(Token { token: TokenType::Comma, pos: _ }) => {
+                        Some(Token { token: TokenType::RightPar, .. }) => return tuple_from_vec(elems),
+                        Some(Token { token: TokenType::Comma, .. }) => {
                             if ALLOW_TRAILING_COMMA {
-                                if let Some(Token { token: TokenType::RightPar, pos: _ }) = tokens.peek().cloned() {
+                                if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
                                     tokens.next();
                                     return TreeType::Tuple(elems).with_pos(pos.clone());
                                 }
@@ -148,7 +147,7 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
                 let cond = parse_expr(tokens);
                 let thenp = parse_block(tokens);
 
-                let elsep = if let Some(Token { token: TokenType::Else, pos: _ }) = tokens.peek().cloned() {
+                let elsep = if let Some(Token { token: TokenType::Else, .. }) = tokens.peek().cloned() {
                     tokens.next();
                     parse_block(tokens)
                 } else {
@@ -159,8 +158,8 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
             },
 
             TokenType::Let => {
-                if let Some(Token { token: TokenType::Ident(name), pos: _ }) = tokens.next() {
-                    if let Some(Token { token: TokenType::Assign, pos: _ }) = tokens.next() {
+                if let Some(Token { token: TokenType::Ident(name), .. }) = tokens.next() {
+                    if let Some(Token { token: TokenType::Assign, .. }) = tokens.next() {
                         TreeType::Def(name, Box::new(parse_expr(tokens)))
                     } else {
                         TreeType::Error("expected '='")
