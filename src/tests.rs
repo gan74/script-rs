@@ -7,7 +7,7 @@ type Name = String;
 
 fn parse(input: &str) -> Tree<Name> {
     fn deblock(t: Tree<Name>) -> Tree<Name> {
-        match t.tree {
+        match t.tree_type {
             TreeType::Block(ref stats, ref expr) if stats.is_empty() => *expr.clone(),
             _ => t,
         }
@@ -32,35 +32,35 @@ fn is_error(input: &str) -> bool {
 }
 
 fn tuple_len(input: &str) -> Option<usize> {
-    match parse_no_error(input).tree {
+    match parse_no_error(input).as_tree_type() {
         TreeType::Tuple(e) => Some(e.len()),
         _ => None
     }
 }
 
 fn is_def(input: &str) -> bool {
-    match parse_no_error(input).tree {
+    match parse_no_error(input).as_tree_type() {
         TreeType::Def(..) => true,
         _ => false
     }
 }
 
 fn is_call(input: &str) -> bool {
-    match parse_no_error(input).tree {
+    match parse_no_error(input).as_tree_type() {
         TreeType::Call(..) => true,
         _ => false
     }
 }
 
 fn is_cond(input: &str) -> bool {
-    match parse_no_error(input).tree {
+    match parse_no_error(input).as_tree_type() {
         TreeType::If(..) => true,
         _ => false
     }
 }
 
 fn is_add(input: &str) -> bool {
-    match parse_no_error(input).tree {
+    match parse_no_error(input).as_tree_type() {
         TreeType::Add(..) => true,
         _ => false
     }
@@ -73,15 +73,16 @@ fn parse_anon_call() {
 
 #[test]
 fn parse_trailing_tuple() {
-    match parse_no_error("{ let x = a()\n(1, 3) }").tree {
+    match parse_no_error("{ let x = a()\n(1, 3) }").as_tree_type() {
         TreeType::Block(_, expr) => 
-            match expr.tree {
+            match expr.as_tree_type() {
                 TreeType::Tuple(e) => assert_eq!(e.len(), 2),
                 _ => assert!(false)
             },
         _ => assert!(false)
     }
     assert!(is_call("{ a() (1, 3) }"));
+    assert!(!is_call("{ a()\n(1, 3) }"));
 }
 
 #[test]
@@ -92,7 +93,6 @@ fn parse_call_precedence() {
     assert!(is_def("let a = b()"));
     assert!(is_def("let a = b()()"));
 }
-
 
 #[test]
 fn parse_def() {

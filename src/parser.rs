@@ -23,7 +23,7 @@ pub fn parse<I: Iterator<Item = Token>>(tokens: &mut I) -> Tree<Name> {
         block 
     } else {
         if let Some(Token { token: _ , pos }) = peekable.peek().cloned() {
-            let block_pos = block.pos.clone();
+            let block_pos = block.position().clone();
             TreeType::Block(vec![block], Box::new(TreeType::Error("expected EOF").with_pos(pos))).with_pos(block_pos)
         } else {
             block
@@ -308,14 +308,14 @@ fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
 
 fn tuple_from_vec(elems: Vec<Tree<Name>>) -> TreeType<Name> {
     if FOLD_TUPLE_1 && elems.len() == 1 {
-        return  elems.into_iter().next().unwrap().tree;
+        return  elems.into_iter().next().unwrap().as_tree_type();
     } else {
         return TreeType::Tuple(elems);
     }
 }
 
 fn to_vec(tpl: Tree<Name>) -> Vec<Tree<Name>> {
-    match tpl.tree {
+    match tpl.tree_type {
         TreeType::Tuple(elems) => elems,
         _ => vec![tpl]
     }

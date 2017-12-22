@@ -43,7 +43,7 @@ impl Env {
 
 
 pub fn eval(tree: &Tree<Name>, env: &mut Env) -> Value {
-    match tree.tree {
+    match tree.tree_type {
         TreeType::Def(ref name, ref rhs) => {
             let val = eval(rhs, env);
             env.def(name, val)

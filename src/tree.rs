@@ -5,6 +5,7 @@ use std::fmt;
 
 use position::*;
 use map_in_place::*;
+use typing::*;
 
 type UnboxedSubTree<Name> = Tree<Name>;
 type SubTree<Name> = Box<UnboxedSubTree<Name>>;
@@ -42,55 +43,118 @@ pub enum TreeType<Name> {
     Error(&'static str)
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Tree<Name> {
+    pub tree_type: TreeType<Name>,
+    pos: Position,
+    type_ref: TypeRef
+}
+
+pub trait TreeLike<Name> {
+    fn as_tree_type(self) -> TreeType<Name>;
+    fn tree_type(&self) -> &TreeType<Name>;
+
+    fn is_error(&self) -> bool {
+        match self.tree_type() {
+            &TreeType::Error(..) => true,
+            _ => false
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self.tree_type() {
+            &TreeType::Empty => true,
+            _ => false
+        }
+    }
+
+    fn name(&self) -> Option<&Name> {
+        match self.tree_type() {
+            &TreeType::Def(ref name, ..) => Some(name),
+            &TreeType::Assign(ref name, ..) => Some(name),
+            &TreeType::Ident(ref name) => Some(name),
+
+            _ => None
+        }
+    }
+
+    fn ident_name(&self) -> Option<&Name> {
+        match self.tree_type() {
+            &TreeType::Ident(ref name) => Some(name),
+            _ => None
+        }
+    }
+}
+
+
+
+
+
+
 impl<Name> TreeType<Name> {
     pub fn with_pos(self, pos: Position) -> Tree<Name> {
         Tree {
-            tree: self,
-            pos: pos
+            tree_type: self,
+            pos: pos,
+            type_ref: TypeRef::untyped()
         }
     }
-}
-
-
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Tree<Name> {
-    pub tree: TreeType<Name>,
-    pub pos: Position
 }
 
 impl<Name> Tree<Name> {
-    pub fn is_error(&self) -> bool {
-        match self.tree {
-            TreeType::Error(_) => true,
-            _ => false
-        }
+    pub fn position(&self) -> &Position {
+        &self.pos
     }
 
-    pub fn is_empty(&self) -> bool {
-        match self.tree {
-            TreeType::Empty => true,
-            _ => false
-        }
+    pub fn as_tree_type(self) -> TreeType<Name> {
+        self.tree_type
     }
 
-    pub fn name(&self) -> Option<&Name> {
-        match self.tree {
-            TreeType::Def(ref name, _) => Some(name),
-            TreeType::Assign(ref name, _) => Some(name),
-            TreeType::Ident(ref name) => Some(name),
-
-            _ => None
-        }
+    pub fn tree_type(&self) -> &TreeType<Name> {
+        &self.tree_type
     }
 
-    pub fn ident_name(&self) -> Option<&Name> {
-        match self.tree {
-            TreeType::Ident(ref name) => Some(name),
-            _ => None
-        }
+    pub fn is_typed(&self) -> bool {
+        self.type_ref.is_typed()
+    }
+}
+
+
+
+
+
+impl<Name> TreeLike<Name> for TreeType<Name> {
+    fn as_tree_type(self) -> TreeType<Name> {
+        self
     }
 
+    fn tree_type(&self) -> &TreeType<Name> {
+        self
+    }
+}
+
+impl<Name> TreeLike<Name> for Tree<Name> {
+    fn as_tree_type(self) -> TreeType<Name> {
+        self.tree_type
+    }
+
+    fn tree_type(&self) -> &TreeType<Name> {
+        &self.tree_type
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+impl<Name> Tree<Name> {
     pub fn for_each<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, mut f: F) {
         self.for_each_ref(&mut f);
     }
@@ -99,7 +163,7 @@ impl<Name> Tree<Name> {
     fn for_each_ref<'a, F: FnMut(&'a Tree<Name>) -> ()>(&'a self, f: &mut F) {
         macro_rules! fe { ($x:expr) => ($x.for_each_ref(f)); }
         f(self);
-        match self.tree {
+        match self.tree_type {
             TreeType::Def(_, ref rhs) => fe!(rhs),
             TreeType::Assign(_, ref rhs) => fe!(rhs),
 
@@ -125,7 +189,6 @@ impl<Name> Tree<Name> {
     }
 }
 
-
 impl<Name: Clone> Tree<Name> {
     pub fn transform<F: FnMut(TreeType<Name>) -> TreeType<Name>>(self, mut f: F) -> Tree<Name> {
         self.transform_ref(&mut f)
@@ -135,7 +198,7 @@ impl<Name: Clone> Tree<Name> {
     fn transform_ref<F: FnMut(TreeType<Name>) -> TreeType<Name>>(self, mut f: &mut F) -> Tree<Name> {
         macro_rules! tr { ($x:expr) => ($x.map_in_place(|t| t.transform_ref(f))); }
         let pos = self.pos.clone();
-        match f(self.tree) {
+        match f(self.tree_type) {
             TreeType::Def(name, rhs) => TreeType::Def(name, tr!(rhs)),
             TreeType::Assign(name, rhs) => TreeType::Assign(name, tr!(rhs)),
 
@@ -162,13 +225,9 @@ impl<Name: Clone> Tree<Name> {
     }
 }
 
-
-
-
-
 impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.tree {
+        match self.tree_type {
             TreeType::Empty => write!(f, "()"),
 
             TreeType::Def(ref name, ref rhs) => write!(f, "let {} = {}", name, rhs),
@@ -245,7 +304,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
 
     fn rename_ref<N, F: FnMut(TreeType<Name>) -> TreeType<N>>(self, mut f: &mut F) -> Tree<N> {
         let pos = self.pos.clone();
-        match self.tree {
+        match self.tree_type {
             TreeType::Add(lhs, rhs) => TreeType::Add(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
             TreeType::Sub(lhs, rhs) => TreeType::Sub(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
             TreeType::Mul(lhs, rhs) => TreeType::Mul(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 

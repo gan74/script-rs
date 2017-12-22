@@ -9,9 +9,9 @@ mod eval;
 mod value;
 mod map_in_place;
 mod tests;
+mod typing;
 
 use tree::*;
-use eval::*;
 use tokenizer::*;
 
 fn collect_errors<'a>(tree: &'a Tree<String>) -> Vec<&'a Tree<String>> {
@@ -25,7 +25,7 @@ fn print_errors(input: &str, tree: &Tree<String>) {
     if !errors.is_empty() {
         println!("{} errors:", errors.len());
         for err in errors {
-            println!("{}\n{}", err, err.pos.pos_string(input));
+            println!("{}\n{}", err, err.position().pos_string(input));
         }
     }
 }
@@ -40,7 +40,6 @@ fn parse(input: &str) -> Tree<String> {
 
 fn main() {
     println!("{}", parse("{ let x = a() (1, 3) }"));
-
     /*let input = r#"{
         let facto = (n, rec) =>
             if n == 1 {
