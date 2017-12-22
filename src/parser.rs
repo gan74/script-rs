@@ -159,8 +159,17 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
 
         // if the expression is followed by a parenthesied expression convert it to a call
         if let Some(Token { token: TokenType::LeftPar, pos }) = tokens.peek().cloned() {
-            let args = parse_simple_expr(tokens);
-            TreeType::Call(Box::new(expr.with_pos(pos)), to_vec(args))
+            fn parse_args<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Vec<Tree<Name>> {
+                let pos = tokens.next().unwrap().pos;
+                let elems = to_vec(parse_tuple(tokens).with_pos(pos));
+                match tokens.next() {
+                    Some(Token { token: TokenType::RightPar, pos }) => elems,
+                    tk => vec![TreeType::Error("expected expression or ')'").with_pos(error_pos(tk))],
+                }
+            }
+
+            let args = parse_args(tokens);
+            TreeType::Call(Box::new(expr.with_pos(pos)), args)
         } else {
             expr
         }.with_pos(pos)
@@ -232,7 +241,7 @@ fn parse_tuple<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> TreeType<
     fn is_end(token: &Option<Token>) -> bool {
         if let &Some(ref token) = token {
             match token.token {
-                TokenType::RightPar | TokenType::RightBrace => true,
+                TokenType::RightPar => true,
                 _ => false
             }
         } else {
@@ -266,7 +275,7 @@ fn parse_tuple<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> TreeType<
                 elems.push(parse_expr(tokens));
             },
             t => {
-                elems.push(TreeType::Error("expected ',', ')' or '}'").with_pos(error_pos(t)));
+                elems.push(TreeType::Error("expected ',', or ')''").with_pos(error_pos(t)));
                 return tuple_from_vec(elems);
             } 
         }  

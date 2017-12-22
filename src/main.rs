@@ -10,7 +10,6 @@ mod value;
 mod map_in_place;
 mod tests;
 
-use parser::*;
 use tree::*;
 use eval::*;
 use tokenizer::*;
@@ -21,8 +20,28 @@ fn collect_errors<'a>(tree: &'a Tree<String>) -> Vec<&'a Tree<String>> {
     err
 }
 
+fn print_errors(input: &str, tree: &Tree<String>) {
+    let errors = collect_errors(tree);
+    if !errors.is_empty() {
+        println!("{} errors:", errors.len());
+        for err in errors {
+            println!("{}\n{}", err, err.pos.pos_string(input));
+        }
+    }
+}
+
+fn parse(input: &str) -> Tree<String> {
+    let mut tokenizer = Tokenizer::tokenize(input.chars());
+    let tree = parser::parse(&mut tokenizer);
+    print_errors(input, &tree);
+    tree
+}
+
+
 fn main() {
-    let input = r#"{
+    parse("a(1, )");
+
+    /*let input = r#"{
         let facto = (n, rec) =>
             if n == 1 {
                 1
@@ -34,6 +53,7 @@ fn main() {
     }"#;
     let mut tokenizer = Tokenizer::tokenize(input.chars());
     let mut tree = parse(&mut tokenizer);
+
 
     /*tree = tree.transform(|x| {
         match x {
@@ -58,5 +78,5 @@ fn main() {
     let duration = now.elapsed();
 
     println!("\ndone in {}ms", (duration.as_secs() * 1000) as u32 + duration.subsec_nanos() / 1000000);
-    println!("\n{:?}", env);
+    println!("\n{:?}", env);*/
 }

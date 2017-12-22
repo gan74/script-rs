@@ -162,36 +162,6 @@ impl<Name: Clone> Tree<Name> {
     }
 }
 
-/*impl<Name: Clone> Tree<Name> {
-    pub fn rename<N, F: FnMut(TreeType<Name>) -> TreeType<N>>(self, mut f: F) -> Tree<N> {
-        self.rename_ref(&mut f)
-    }
-
-    fn rename_ref<N, F: FnMut(TreeType<Name>) -> TreeType<N>>(self, mut f: &mut F) -> Tree<N> {
-        let pos = self.pos.clone();
-        match self.tree {
-            TreeType::Add(lhs, rhs) => TreeType::Add(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
-            TreeType::Sub(lhs, rhs) => TreeType::Sub(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
-            TreeType::Mul(lhs, rhs) => TreeType::Mul(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
-            TreeType::Div(lhs, rhs) => TreeType::Div(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
-
-            TreeType::Eq(lhs, rhs) => TreeType::Eq(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
-            TreeType::Neq(lhs, rhs) => TreeType::Neq(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
-
-            TreeType::Func(bind, body) => TreeType::Func(bind.into_iter().map(|t| t.rename_ref(f)).collect(), Rc::new(Rc::try_unwrap(body).ok().unwrap().rename_ref(f))),
-            TreeType::Call(func, args) => TreeType::Call(Box::new(func.rename_ref(f)), args.into_iter().map(|t| t.rename_ref(f)).collect()),
-
-            TreeType::Block(stats, expr) => TreeType::Block(stats.into_iter().map(|t| t.rename_ref(f)).collect(), Box::new(expr.rename_ref(f))),
-            TreeType::Tuple(elems) => TreeType::Tuple(elems.into_iter().map(|t| t.rename_ref(f)).collect()),
-
-            TreeType::If(cond, thenp, elsep) => TreeType::If(Box::new(cond.rename_ref(f)), Box::new(thenp.rename_ref(f)), Box::new(elsep.rename_ref(f))), 
-            TreeType::While(cond, body) => TreeType::While(Box::new(cond.rename_ref(f)), Box::new(body.rename_ref(f))),
-
-            t => panic!("???"),
-        }.with_pos(pos)
-    }
-}*/
-
 
 
 
@@ -224,7 +194,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                 r.and_then(|_| write!(f, ") => {}", body))
             },
             TreeType::Call(ref func, ref args) => {
-                let mut r = write!(f, "{}(", func);
+                let mut r = write!(f, "({})(", func);
                 for a in args {
                     r = r.and_then(|_| write!(f, "{}, ", a));
                 }
@@ -261,3 +231,40 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
         }
     }
 }
+
+
+
+
+
+
+
+/*impl<Name: Clone> Tree<Name> {
+    pub fn rename<N, F: FnMut(TreeType<Name>) -> TreeType<N>>(self, mut f: F) -> Tree<N> {
+        self.rename_ref(&mut f)
+    }
+
+    fn rename_ref<N, F: FnMut(TreeType<Name>) -> TreeType<N>>(self, mut f: &mut F) -> Tree<N> {
+        let pos = self.pos.clone();
+        match self.tree {
+            TreeType::Add(lhs, rhs) => TreeType::Add(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
+            TreeType::Sub(lhs, rhs) => TreeType::Sub(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))),
+            TreeType::Mul(lhs, rhs) => TreeType::Mul(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
+            TreeType::Div(lhs, rhs) => TreeType::Div(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
+
+            TreeType::Eq(lhs, rhs) => TreeType::Eq(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
+            TreeType::Neq(lhs, rhs) => TreeType::Neq(Box::new(lhs.rename_ref(f)), Box::new(rhs.rename_ref(f))), 
+
+            TreeType::Func(bind, body) => TreeType::Func(bind.into_iter().map(|t| t.rename_ref(f)).collect(), Rc::new(Rc::try_unwrap(body).ok().unwrap().rename_ref(f))),
+            TreeType::Call(func, args) => TreeType::Call(Box::new(func.rename_ref(f)), args.into_iter().map(|t| t.rename_ref(f)).collect()),
+
+            TreeType::Block(stats, expr) => TreeType::Block(stats.into_iter().map(|t| t.rename_ref(f)).collect(), Box::new(expr.rename_ref(f))),
+            TreeType::Tuple(elems) => TreeType::Tuple(elems.into_iter().map(|t| t.rename_ref(f)).collect()),
+
+            TreeType::If(cond, thenp, elsep) => TreeType::If(Box::new(cond.rename_ref(f)), Box::new(thenp.rename_ref(f)), Box::new(elsep.rename_ref(f))), 
+            TreeType::While(cond, body) => TreeType::While(Box::new(cond.rename_ref(f)), Box::new(body.rename_ref(f))),
+
+            t => panic!("???"),
+        }.with_pos(pos)
+    }
+}*/
+
