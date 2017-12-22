@@ -8,6 +8,7 @@ mod parser;
 mod eval;
 mod value;
 mod map_in_place;
+mod tests;
 
 use parser::*;
 use tree::*;

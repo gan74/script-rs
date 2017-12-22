@@ -4,6 +4,7 @@ use std::fmt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Position {
+    // filename should not be cloned
     pub filename: String,
     pub line: usize,
     col: usize
@@ -24,6 +25,14 @@ impl Position {
             line: usize::max_value(),
             col: usize::max_value()
         }
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn column(&self) -> usize {
+        self.col
     }
 
     pub fn next_line(&mut self) {

@@ -9,7 +9,6 @@ use position::*;
 type Name = String;
 
 const FORCE_BLOCK_BRACES: bool = false;
-const ALLOW_TRAILING_COMMA: bool = true;
 const FOLD_TUPLE_1: bool = true;
 
 
@@ -118,51 +117,12 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
 
             // parenthesised expression (like '(a + b)') or tuple
             TokenType::LeftPar => {
-                fn tuple_from_vec(elems: Vec<Tree<Name>>) -> TreeType<Name> {
-                    if FOLD_TUPLE_1 && elems.len() == 1 {
-                        return  elems.into_iter().next().unwrap().tree;
-                    } else {
-                        return TreeType::Tuple(elems);
-                    }
+                let tuple = parse_tuple(tokens);
+                if let Some(Token { token: TokenType::RightPar, .. }) = tokens.next() {
+                    tuple
+                } else {
+                    TreeType::Error("expected ')'")
                 }
-
-                // read until ')'
-                fn parse_tuple<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> TreeType<Name> {
-                    let mut elems = Vec::new();
-
-                    // if we get a ')' right away return an empty tuple
-                    if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
-                        tokens.next();
-                        return tuple_from_vec(elems);
-                    } else { 
-                        elems.push(parse_expr(tokens))
-                    }
-
-                    // loop until ')'
-                    loop {
-                        match tokens.next() {
-                            // return element in tuples or as a single expression if there is only one
-                            Some(Token { token: TokenType::RightPar, .. }) => return tuple_from_vec(elems),
-
-                            Some(Token { token: TokenType::Comma, .. }) => {
-                                if ALLOW_TRAILING_COMMA {
-                                    // check for ')' in case the comma is empty, if it is (like: '(a, )'), force return a tuple
-                                    // to tuple_from_vec to convert back to a simple expression 
-                                    if let Some(Token { token: TokenType::RightPar, .. }) = tokens.peek().cloned() {
-                                        tokens.next();
-                                        return TreeType::Tuple(elems);
-                                    }
-                                }
-                                elems.push(parse_expr(tokens));
-                            },
-                            tk => {
-                                elems.push(TreeType::Error("expected ',' or ')'").with_pos(error_pos(tk)));
-                                return tuple_from_vec(elems);
-                            }
-                        }
-                    }
-                };
-                parse_tuple(tokens)
             },
 
             // conditional branch
@@ -267,6 +227,53 @@ fn parse_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tree<Name>
     }
 }
 
+// parse a list of comma separated trees
+fn parse_tuple<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> TreeType<Name> {
+    fn is_end(token: &Option<Token>) -> bool {
+        if let &Some(ref token) = token {
+            match token.token {
+                TokenType::RightPar | TokenType::RightBrace => true,
+                _ => false
+            }
+        } else {
+            true
+        } 
+    }
+
+    fn is_comma(token: &Option<Token>) -> bool {
+        if let Some(Token { token: TokenType::Comma, .. }) = *token {
+            true 
+        } else {
+            false
+        }
+    }
+
+    let mut elems = Vec::new();
+    if is_end(&tokens.peek().cloned()) {
+        return tuple_from_vec(elems);
+    } else {
+        elems.push(parse_expr(tokens));
+    }
+
+    loop {
+        match tokens.peek().cloned() {
+            ref t if is_end(&t) => return tuple_from_vec(elems),
+            ref t if is_comma(&t) => {
+                tokens.next();
+                if is_end(&tokens.peek().cloned()) {
+                    return TreeType::Tuple(elems);
+                }
+                elems.push(parse_expr(tokens));
+            },
+            t => {
+                elems.push(TreeType::Error("expected ',', ')' or '}'").with_pos(error_pos(t)));
+                return tuple_from_vec(elems);
+            } 
+        }  
+    }
+}
+
+
 
 // ------------------------------------------- helpers -------------------------------------------
 
@@ -283,7 +290,13 @@ fn create_bin_op(op: Token, lhs: Tree<Name>, rhs: Tree<Name>) -> Tree<Name> {
     }.with_pos(op.pos)
 }
 
-
+fn tuple_from_vec(elems: Vec<Tree<Name>>) -> TreeType<Name> {
+    if FOLD_TUPLE_1 && elems.len() == 1 {
+        return  elems.into_iter().next().unwrap().tree;
+    } else {
+        return TreeType::Tuple(elems);
+    }
+}
 
 fn to_vec(tpl: Tree<Name>) -> Vec<Tree<Name>> {
     match tpl.tree {
@@ -297,8 +310,8 @@ fn eof_error() -> Tree<Name> {
 }
 
 fn error_pos(tk: Option<Token>) -> Position {
-    if let Some(Token { token: _, pos }) = tk {
-        pos
+    if let Some(Token { token: _, ref pos }) = tk {
+        pos.clone()
     } else {
         Position::eof()
     }
