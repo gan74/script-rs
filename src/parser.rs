@@ -157,9 +157,16 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
             _ => TreeType::Error("expected expression or '('")
         };
 
-        // if the expression is followed by a parenthesied expression convert it to a call
-        if let Some(Token { token: TokenType::LeftPar, pos }) = tokens.peek().cloned() {
+        let mut expr = expr;
+        // if the expression is followed by a number of parenthesied expressions convert it to a call
+        while let Some(Token { token: TokenType::LeftPar, pos: call_pos }) = tokens.peek().cloned() {
+            // check the arg block is on the same line
+            if !same_line(&pos, &call_pos) {
+                break;
+            }
+                
             fn parse_args<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Vec<Tree<Name>> {
+                // eat '(', saving the pos
                 let pos = tokens.next().unwrap().pos;
                 let elems = to_vec(parse_tuple(tokens).with_pos(pos));
                 match tokens.next() {
@@ -169,10 +176,10 @@ fn parse_simple_expr<I: Iterator<Item = Token>>(tokens: &mut Peekable<I>) -> Tre
             }
 
             let args = parse_args(tokens);
-            TreeType::Call(Box::new(expr.with_pos(pos)), args)
-        } else {
-            expr
-        }.with_pos(pos)
+            expr = TreeType::Call(Box::new(expr.with_pos(call_pos)), args)
+        } 
+
+        expr.with_pos(pos)
 
     } else {
         eof_error()
@@ -324,4 +331,8 @@ fn error_pos(tk: Option<Token>) -> Position {
     } else {
         Position::eof()
     }
+}
+
+fn same_line(a: &Position, b: &Position) -> bool {
+    a.line() == b.line()
 }

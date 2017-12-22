@@ -39,7 +39,7 @@ fn parse(input: &str) -> Tree<String> {
 
 
 fn main() {
-    parse("a(1, )");
+    println!("{}", parse("{ let x = a() (1, 3) }"));
 
     /*let input = r#"{
         let facto = (n, rec) =>

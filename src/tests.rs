@@ -73,7 +73,7 @@ fn parse_anon_call() {
 
 #[test]
 fn parse_trailing_tuple() {
-    match parse_no_error("{ let x = a() (1, 3) }").tree {
+    match parse_no_error("{ let x = a()\n(1, 3) }").tree {
         TreeType::Block(_, expr) => 
             match expr.tree {
                 TreeType::Tuple(e) => assert_eq!(e.len(), 2),
@@ -81,7 +81,18 @@ fn parse_trailing_tuple() {
             },
         _ => assert!(false)
     }
+    assert!(is_call("{ a() (1, 3) }"));
 }
+
+#[test]
+fn parse_call_precedence() {
+    assert!(is_add("a() + b"));
+    assert!(is_add("a + b()"));
+    assert!(is_call("(a + b)()"));
+    assert!(is_def("let a = b()"));
+    assert!(is_def("let a = b()()"));
+}
+
 
 #[test]
 fn parse_def() {

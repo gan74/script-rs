@@ -194,7 +194,7 @@ impl<Name> fmt::Display for Tree<Name> where Name: fmt::Display {
                 r.and_then(|_| write!(f, ") => {}", body))
             },
             TreeType::Call(ref func, ref args) => {
-                let mut r = write!(f, "({})(", func);
+                let mut r = write!(f, "{}(", func);
                 for a in args {
                     r = r.and_then(|_| write!(f, "{}, ", a));
                 }
